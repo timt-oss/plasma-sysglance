@@ -684,171 +684,179 @@ KCM.SimpleKCM {
                 required property string format
 
                 width: metricList.width
-                implicitHeight: rowColumn.implicitHeight + Kirigami.Units.smallSpacing
-
-                ColumnLayout {
-                    id: rowColumn
-                    anchors.verticalCenter: parent.verticalCenter
+                implicitHeight: draggingRow.implicitHeight
+                // The drag handle is handed this child, not the delegate itself:
+                // ListItemDragHandle reparents whatever it is given to the ListView,
+                // and Kirigami requires that item to be a child of the delegate.
+                Item {
+                    id: draggingRow
                     width: parent.width
-                    spacing: Kirigami.Units.smallSpacing
+                    implicitHeight: rowColumn.implicitHeight + Kirigami.Units.smallSpacing
 
-                    RowLayout {
+                    ColumnLayout {
+                        id: rowColumn
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width
                         spacing: Kirigami.Units.smallSpacing
 
-                        Kirigami.ListItemDragHandle {
-                            listItem: metricRow
-                            listView: metricList
-                            Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
-                            Layout.fillHeight: true
-                            onMoveRequested: (oldIndex, newIndex) => metricModel.move(oldIndex, newIndex, 1)
-                            onDropped: page.saveMetrics()
-                        }
-
-                        QQC2.CheckBox {
-                            text: metricRow.label
-                            checked: metricRow.shown
-                            Layout.preferredWidth: Kirigami.Units.gridUnit * 5
-                            onToggled: {
-                                metricModel.setProperty(metricRow.index, "shown", checked);
-                                page.saveMetrics();
-                            }
-                        }
-
-                        DisplayCombo {
-                            Layout.fillWidth: true
-                            enabled: metricRow.shown
-                            model: page.partChoices(metricRow)
-                            onActivated: {
-                                metricModel.setProperty(metricRow.index, "parts", currentValue);
-                                page.saveMetrics();
-                            }
-                            Component.onCompleted: currentIndex = indexOfValue(metricRow.parts)
-                        }
-                    }
-
-                    // Fan sensor picker: only the fan row needs one.
-                    ColumnLayout {
-                        visible: metricRow.fan
-                        Layout.leftMargin: Kirigami.Units.gridUnit * 2
-                        spacing: Kirigami.Units.smallSpacing / 2
-
-                        QQC2.Label {
-                            text: i18n("Fan sensor:")
-                            font: Kirigami.Theme.smallFont
-                        }
-
-                        QQC2.ComboBox {
-                            id: fanSensorCombo
-
-                            Layout.fillWidth: true
-                            enabled: metricRow.shown
-                            textRole: "text"
-                            valueRole: "value"
-                            model: fanSensorChoices
-                            onActivated: page.cfg_fanSensorId = currentValue
-                            Component.onCompleted: syncCurrent()
-                            // The daemon's sensor list arrives asynchronously,
-                            // so rebuild it as the popup opens rather than once
-                            // at load time.
-                            onPressedChanged: if (pressed) {
-                                page.refreshFanSensorList();
-                                syncCurrent();
-                            }
-                            Connections {
-                                target: page
-                                function onCfg_fanSensorIdChanged() {
-                                    fanSensorCombo.syncCurrent();
-                                }
-                            }
-                            function syncCurrent() {
-                                currentIndex = Math.max(0, indexOfValue(page.cfg_fanSensorId));
-                            }
-                        }
-
-                        QQC2.Label {
-                            Layout.fillWidth: true
-                            text: !page.fanSensorListBuilt
-                                ? i18n("The list loads when you open it: every RPM sensor KSystemStats publishes.")
-                                : fanSensorChoices.count > 1
-                                  ? i18n("Reads any RPM sensor KSystemStats publishes — usually from lm_sensors.")
-                                  : i18n("No fan sensor found. KSystemStats publishes fan speeds only when the hardware reports them.")
-                            font: Kirigami.Theme.smallFont
-                            opacity: 0.7
-                            wrapMode: Text.WordWrap
-                        }
-                    }
-
-                    ColumnLayout {
-                        visible: metricRow.parts === "custom"
-                        Layout.leftMargin: Kirigami.Units.gridUnit * 2
-                        spacing: Kirigami.Units.smallSpacing / 2
-
-                        QQC2.TextField {
-                            id: formatField
-                            Layout.fillWidth: true
-                            text: metricRow.format
-                            enabled: metricRow.shown
-                            onEditingFinished: {
-                                metricModel.setProperty(metricRow.index, "format", text);
-                                page.saveMetrics();
-                            }
-                        }
-
-                        QQC2.Label {
-                            text: i18n("Click a value to insert it:")
-                            font: Kirigami.Theme.smallFont
-                            opacity: 0.7
-                        }
-
-                        Flow {
-                            Layout.fillWidth: true
+                        RowLayout {
                             spacing: Kirigami.Units.smallSpacing
 
-                            Repeater {
-                                model: page.variableDefs(metricRow.key)
+                            Kirigami.ListItemDragHandle {
+                                listItem: draggingRow
+                                listView: metricList
+                                Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
+                                Layout.fillHeight: true
+                                onMoveRequested: (oldIndex, newIndex) => metricModel.move(oldIndex, newIndex, 1)
+                                onDropped: page.saveMetrics()
+                            }
 
-                                delegate: QQC2.Button {
-                                    id: chip
+                            QQC2.CheckBox {
+                                text: metricRow.label
+                                checked: metricRow.shown
+                                Layout.preferredWidth: Kirigami.Units.gridUnit * 5
+                                onToggled: {
+                                    metricModel.setProperty(metricRow.index, "shown", checked);
+                                    page.saveMetrics();
+                                }
+                            }
 
-                                    required property var modelData
+                            DisplayCombo {
+                                Layout.fillWidth: true
+                                enabled: metricRow.shown
+                                model: page.partChoices(metricRow)
+                                onActivated: {
+                                    metricModel.setProperty(metricRow.index, "parts", currentValue);
+                                    page.saveMetrics();
+                                }
+                                Component.onCompleted: currentIndex = indexOfValue(metricRow.parts)
+                            }
+                        }
 
-                                    enabled: metricRow.shown
-                                    // Don't steal focus — the field keeps its
-                                    // cursor position for the insertion.
-                                    focusPolicy: Qt.NoFocus
+                        // Fan sensor picker: only the fan row needs one.
+                        ColumnLayout {
+                            visible: metricRow.fan
+                            Layout.leftMargin: Kirigami.Units.gridUnit * 2
+                            spacing: Kirigami.Units.smallSpacing / 2
 
-                                    // The style's button background doesn't size
-                                    // itself from a custom contentItem, so pin the
-                                    // implicit size to content + padding explicitly.
-                                    padding: Kirigami.Units.smallSpacing
-                                    leftPadding: Kirigami.Units.smallSpacing * 2
-                                    rightPadding: Kirigami.Units.smallSpacing * 2
-                                    implicitWidth: chipRow.implicitWidth + leftPadding + rightPadding
-                                    implicitHeight: chipRow.implicitHeight + topPadding + bottomPadding
+                            QQC2.Label {
+                                text: i18n("Fan sensor:")
+                                font: Kirigami.Theme.smallFont
+                            }
 
-                                    onClicked: {
-                                        const pos = formatField.cursorPosition;
-                                        formatField.text = formatField.text.slice(0, pos)
-                                            + chip.modelData.token
-                                            + formatField.text.slice(pos);
-                                        formatField.cursorPosition = pos + chip.modelData.token.length;
-                                        metricModel.setProperty(metricRow.index, "format", formatField.text);
-                                        page.saveMetrics();
+                            QQC2.ComboBox {
+                                id: fanSensorCombo
+
+                                Layout.fillWidth: true
+                                enabled: metricRow.shown
+                                textRole: "text"
+                                valueRole: "value"
+                                model: fanSensorChoices
+                                onActivated: page.cfg_fanSensorId = currentValue
+                                Component.onCompleted: syncCurrent()
+                                // The daemon's sensor list arrives asynchronously,
+                                // so rebuild it as the popup opens rather than once
+                                // at load time.
+                                onPressedChanged: if (pressed) {
+                                    page.refreshFanSensorList();
+                                    syncCurrent();
+                                }
+                                Connections {
+                                    target: page
+                                    function onCfg_fanSensorIdChanged() {
+                                        fanSensorCombo.syncCurrent();
                                     }
+                                }
+                                function syncCurrent() {
+                                    currentIndex = Math.max(0, indexOfValue(page.cfg_fanSensorId));
+                                }
+                            }
 
-                                    contentItem: RowLayout {
-                                        id: chipRow
-                                        spacing: Kirigami.Units.smallSpacing
+                            QQC2.Label {
+                                Layout.fillWidth: true
+                                text: !page.fanSensorListBuilt
+                                    ? i18n("The list loads when you open it: every RPM sensor KSystemStats publishes.")
+                                    : fanSensorChoices.count > 1
+                                      ? i18n("Reads any RPM sensor KSystemStats publishes — usually from lm_sensors.")
+                                      : i18n("No fan sensor found. KSystemStats publishes fan speeds only when the hardware reports them.")
+                                font: Kirigami.Theme.smallFont
+                                opacity: 0.7
+                                wrapMode: Text.WordWrap
+                            }
+                        }
 
-                                        QQC2.Label {
-                                            text: chip.modelData.token
-                                            font.family: "monospace"
-                                            font.bold: true
+                        ColumnLayout {
+                            visible: metricRow.parts === "custom"
+                            Layout.leftMargin: Kirigami.Units.gridUnit * 2
+                            spacing: Kirigami.Units.smallSpacing / 2
+
+                            QQC2.TextField {
+                                id: formatField
+                                Layout.fillWidth: true
+                                text: metricRow.format
+                                enabled: metricRow.shown
+                                onEditingFinished: {
+                                    metricModel.setProperty(metricRow.index, "format", text);
+                                    page.saveMetrics();
+                                }
+                            }
+
+                            QQC2.Label {
+                                text: i18n("Click a value to insert it:")
+                                font: Kirigami.Theme.smallFont
+                                opacity: 0.7
+                            }
+
+                            Flow {
+                                Layout.fillWidth: true
+                                spacing: Kirigami.Units.smallSpacing
+
+                                Repeater {
+                                    model: page.variableDefs(metricRow.key)
+
+                                    delegate: QQC2.Button {
+                                        id: chip
+
+                                        required property var modelData
+
+                                        enabled: metricRow.shown
+                                        // Don't steal focus — the field keeps its
+                                        // cursor position for the insertion.
+                                        focusPolicy: Qt.NoFocus
+
+                                        // The style's button background doesn't size
+                                        // itself from a custom contentItem, so pin the
+                                        // implicit size to content + padding explicitly.
+                                        padding: Kirigami.Units.smallSpacing
+                                        leftPadding: Kirigami.Units.smallSpacing * 2
+                                        rightPadding: Kirigami.Units.smallSpacing * 2
+                                        implicitWidth: chipRow.implicitWidth + leftPadding + rightPadding
+                                        implicitHeight: chipRow.implicitHeight + topPadding + bottomPadding
+
+                                        onClicked: {
+                                            const pos = formatField.cursorPosition;
+                                            formatField.text = formatField.text.slice(0, pos)
+                                                + chip.modelData.token
+                                                + formatField.text.slice(pos);
+                                            formatField.cursorPosition = pos + chip.modelData.token.length;
+                                            metricModel.setProperty(metricRow.index, "format", formatField.text);
+                                            page.saveMetrics();
                                         }
-                                        QQC2.Label {
-                                            text: chip.modelData.desc
-                                            font: Kirigami.Theme.smallFont
-                                            opacity: 0.7
+
+                                        contentItem: RowLayout {
+                                            id: chipRow
+                                            spacing: Kirigami.Units.smallSpacing
+
+                                            QQC2.Label {
+                                                text: chip.modelData.token
+                                                font.family: "monospace"
+                                                font.bold: true
+                                            }
+                                            QQC2.Label {
+                                                text: chip.modelData.desc
+                                                font: Kirigami.Theme.smallFont
+                                                opacity: 0.7
+                                            }
                                         }
                                     }
                                 }

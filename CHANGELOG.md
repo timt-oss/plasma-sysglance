@@ -14,6 +14,11 @@ and versions follow the `Version` field in `metadata.json` (tag `v<version>`).
   machine-specific. Fan speed carries its own warning and critical RPM
   thresholds: the shared "threshold + 10" step does not fit RPM.
 
+### Fixed
+- Reordering the metric rows on the Appearance settings page did nothing. The
+  drag handle was given the ListView's delegate itself, and it reparents
+  whatever it is handed to the ListView, so a drag never moved a row.
+
 ## [2.2] - 2026-07-15
 
 ### Changed
