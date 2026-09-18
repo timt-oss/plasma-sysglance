@@ -4,7 +4,7 @@ A compact KDE Plasma 6 panel widget that replaces a whole row of system-monitor
 plasmoids with one labeled strip:
 
 ```
-RAM 19% | DISK 48% | CPU 1% 39° | GPU 2% 43°
+RAM 19% | DISK 48% | CPU 1% 39° | GPU 2% 43° | FAN 2520 RPM
 ```
 
 Clicking it opens a detail popup; hovering shows a summary tooltip.
@@ -12,8 +12,12 @@ Clicking it opens a detail popup; hovering shows a summary tooltip.
 ## Features
 
 - **Panel strip** — RAM used %, disk used % (all filesystems), CPU usage % +
-  hottest-core temperature, GPU usage % + temperature. Tabular, fixed-width
-  digits so the row never shifts as values tick.
+  hottest-core temperature, GPU usage % + temperature, and optionally fan speed.
+  Tabular, fixed-width digits so the row never shifts as values tick.
+- **Fan speed** — an optional fifth metric that reads any RPM sensor
+  KSystemStats publishes (usually one sensor per fan via lm_sensors). Pick it in
+  the Appearance settings page; the metric stays hidden until a sensor is
+  chosen, because the sensor IDs are machine-specific.
 - **Configurable strip layout** (Appearance settings page) — a reorderable
   metric list: drag to set left-to-right order, checkbox to show/hide, and
   a per-metric dropdown picking which values it shows and in what order

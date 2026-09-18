@@ -35,6 +35,23 @@ PlasmoidItem {
     Sensors.Sensor { id: gpuVram;      sensorId: "gpu/gpu0/usedVram";           updateRateLimit: root.rateMs }
     Sensors.Sensor { id: gpuVramTotal; sensorId: "gpu/gpu0/totalVram";          updateRateLimit: root.rateMs }
 
+    // The fan metric reads one KSystemStats RPM sensor. Its ID is
+    // machine-specific, so the user picks it in the settings page and the
+    // metric stays hidden until then. A Sensor with an empty ID would ask the
+    // daemon to subscribe to nothing, so it is disabled instead.
+    Sensors.Sensor {
+        id: fanSensor
+        enabled: root.fanConfigured
+        sensorId: Plasmoid.configuration.fanSensorId
+        // The daemon reports 0 until its first push, and every push after that
+        // waits for updateRateLimit. On a 60 second interval that leaves the
+        // strip showing "0 RPM" for a whole minute after login, so the fan
+        // keeps a short limit of its own.
+        updateRateLimit: Math.min(root.rateMs, 5000)
+    }
+
+    readonly property bool fanConfigured: Plasmoid.configuration.fanSensorId !== ""
+
     // NVIDIA exposes a single GPU temperature, so "peak" is a rolling
     // 10-minute maximum — it self-heals instead of staying red all day.
     property var gpuHistory: []
@@ -90,6 +107,20 @@ PlasmoidItem {
         return (v === undefined || v === "") ? "—" : v;
     }
 
+    // KSystemStats renders RPM as "2,520.0 RPM" — too wide and too precise for
+    // a panel strip, so the fan formats its own number.
+    function rpm(v) {
+        return (v === undefined || isNaN(v)) ? "—" : Math.round(v) + " RPM";
+    }
+
+    function fanValue() {
+        return root.fanConfigured ? fanSensor.value : undefined;
+    }
+
+    function fanName() {
+        return root.fanConfigured && fanSensor.name !== "" ? fanSensor.name : "—";
+    }
+
     // --- Panel strip content ---------------------------------------------
     // The strip renders visibleMetrics: metricOrder (left-to-right, drag to
     // reorder in settings) filtered to shown metrics, each with an ordered
@@ -101,13 +132,15 @@ PlasmoidItem {
             ram: Plasmoid.configuration.ramShown,
             disk: Plasmoid.configuration.diskShown,
             cpu: Plasmoid.configuration.cpuShown,
-            gpu: Plasmoid.configuration.gpuShown
+            gpu: Plasmoid.configuration.gpuShown,
+            fan: Plasmoid.configuration.fanShown && root.fanConfigured
         };
         const parts = {
             ram: Plasmoid.configuration.ramParts,
             disk: Plasmoid.configuration.diskParts,
             cpu: Plasmoid.configuration.cpuParts,
-            gpu: Plasmoid.configuration.gpuParts
+            gpu: Plasmoid.configuration.gpuParts,
+            fan: Plasmoid.configuration.fanParts
         };
         return Plasmoid.configuration.metricOrder.split(",")
             .map(k => k.trim())
@@ -119,10 +152,18 @@ PlasmoidItem {
         return metric === "ram" ? Plasmoid.configuration.ramLabel
              : metric === "disk" ? Plasmoid.configuration.diskLabel
              : metric === "cpu" ? Plasmoid.configuration.cpuLabel
-             : Plasmoid.configuration.gpuLabel;
+             : metric === "gpu" ? Plasmoid.configuration.gpuLabel
+             : Plasmoid.configuration.fanLabel;
     }
 
     function metricIcon(metric) {
+        if (metric === "fan") {
+            // Breeze ships no fan icon, so an empty setting falls back to the
+            // SVG that comes with the widget.
+            return Plasmoid.configuration.fanIcon !== ""
+                ? Plasmoid.configuration.fanIcon
+                : Qt.resolvedUrl("../images/fan.svg");
+        }
         return metric === "ram" ? Plasmoid.configuration.ramIcon
              : metric === "disk" ? Plasmoid.configuration.diskIcon
              : metric === "cpu" ? Plasmoid.configuration.cpuIcon
@@ -143,6 +184,10 @@ PlasmoidItem {
         if (metric === "gpu") {
             return { usage: pct(gpuUsage.value), temp: deg(gpuTemp.value), peak: deg(gpuPeak), vram: fmt(gpuVram), vramtotal: fmt(gpuVramTotal), power: fmt(gpuPower) };
         }
+        if (metric === "fan") {
+            const v = fanValue();
+            return { speed: rpm(v), rpm: (v === undefined || isNaN(v)) ? "—" : String(Math.round(v)), name: fanName() };
+        }
         return {};
     }
 
@@ -150,7 +195,8 @@ PlasmoidItem {
         return metric === "ram" ? Plasmoid.configuration.ramFormat
              : metric === "disk" ? Plasmoid.configuration.diskFormat
              : metric === "cpu" ? Plasmoid.configuration.cpuFormat
-             : Plasmoid.configuration.gpuFormat;
+             : metric === "gpu" ? Plasmoid.configuration.gpuFormat
+             : Plasmoid.configuration.fanFormat;
     }
 
     function expandTemplate(metric, tpl) {
@@ -174,6 +220,9 @@ PlasmoidItem {
         if (metric === "gpu") {
             return part === "temp" ? deg(gpuTemp.value) : pct(gpuUsage.value);
         }
+        if (metric === "fan") {
+            return rpm(fanValue());
+        }
         return "—";
     }
 
@@ -195,6 +244,9 @@ PlasmoidItem {
             return part === "usage" ? gpuUsageTier
                  : part === "temp" ? gpuTempTier
                  : Math.max(gpuUsageTier, gpuTempTier);
+        }
+        if (metric === "fan") {
+            return fanTier;
         }
         return 0;
     }
@@ -233,6 +285,18 @@ PlasmoidItem {
     readonly property int cpuTempTier: tier(cpuTempMax.value, Plasmoid.configuration.cpuTempThreshold)
     readonly property int gpuUsageTier: tier(gpuUsage.value, Plasmoid.configuration.gpuUsageThreshold)
     readonly property int gpuTempTier: tier(gpuTemp.value, Plasmoid.configuration.gpuTempThreshold)
+    // A fan speed is not a "how bad" scale, so it has no "+10" step: amber at
+    // the warning RPM and red at the critical RPM. A stopped or unread fan
+    // stays uncoloured rather than red.
+    readonly property int fanTier: {
+        const v = fanValue();
+        if (v === undefined || isNaN(v) || v <= 0) {
+            return 0;
+        }
+        return v >= Plasmoid.configuration.fanCriticalThreshold ? 2
+             : v >= Plasmoid.configuration.fanThreshold ? 1
+             : 0;
+    }
 
     toolTipMainText: i18n("System Glance")
     toolTipSubText: [
@@ -244,6 +308,7 @@ PlasmoidItem {
              pct(ramSensor.value), fmt(ramUsed), fmt(ramTotal)),
         i18n("Disk %1 — %2 of %3 used",
              pct(diskSensor.value), fmt(diskUsed), fmt(diskTotal)),
+        root.fanConfigured ? i18n("Fan %1 — %2", fanName(), rpm(fanValue())) : "",
         "",
         i18n("Click for the full breakdown")
     ].join("\n")
@@ -583,6 +648,14 @@ PlasmoidItem {
             DetailLabel {
                 text: i18n("Clocks: core %1, memory %2",
                            root.fmt(gpuCoreFreq), root.fmt(gpuMemFreq))
+            }
+
+            SectionHeading { text: i18n("Fan") }
+            DetailLabel {
+                text: root.fanConfigured
+                    ? i18n("%1 — %2", root.fanName(), root.rpm(root.fanValue()))
+                    : i18n("No fan sensor chosen — pick one in the widget settings")
+                color: root.tierColor(root.fanTier)
             }
 
             Item { Layout.fillHeight: true }

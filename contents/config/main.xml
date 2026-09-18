@@ -13,7 +13,7 @@
              comma-separated list of the values it shows — "usage" (percent),
              "temp" (CPU/GPU temperature), "abs" (RAM/disk used amount). -->
         <entry name="metricOrder" type="String">
-            <default>ram,disk,cpu,gpu</default>
+            <default>ram,disk,cpu,gpu,fan</default>
         </entry>
         <entry name="ramShown" type="Bool">
             <default>true</default>
@@ -27,6 +27,15 @@
         <entry name="gpuShown" type="Bool">
             <default>true</default>
         </entry>
+        <!-- The fan metric reads one KSystemStats RPM sensor, picked in the
+             settings page from the sensors the daemon publishes (the IDs are
+             machine-specific). It stays hidden while fanSensorId is empty. -->
+        <entry name="fanShown" type="Bool">
+            <default>false</default>
+        </entry>
+        <entry name="fanSensorId" type="String">
+            <default></default>
+        </entry>
         <entry name="ramParts" type="String">
             <default>usage</default>
         </entry>
@@ -38,6 +47,9 @@
         </entry>
         <entry name="gpuParts" type="String">
             <default>usage,temp</default>
+        </entry>
+        <entry name="fanParts" type="String">
+            <default>speed</default>
         </entry>
         <!-- Templates used when a metric's Parts is "custom"; {variables}
              are expanded per metric (see templateVars in main.qml) -->
@@ -52,6 +64,9 @@
         </entry>
         <entry name="gpuFormat" type="String">
             <default>{usage} {temp} {vram}</default>
+        </entry>
+        <entry name="fanFormat" type="String">
+            <default>{speed}</default>
         </entry>
         <!-- Appearance: 0 = text labels, 1 = icon labels -->
         <entry name="labelStyle" type="Int">
@@ -69,6 +84,9 @@
         <entry name="gpuLabel" type="String">
             <default>GPU</default>
         </entry>
+        <entry name="fanLabel" type="String">
+            <default>FAN</default>
+        </entry>
         <entry name="ramIcon" type="String">
             <default>memory</default>
         </entry>
@@ -80,6 +98,12 @@
         </entry>
         <entry name="gpuIcon" type="String">
             <default>video-display</default>
+        </entry>
+        <!-- Breeze ships no "fan" icon, so an empty value falls back to the
+             bundled contents/images/fan.svg (see main.qml); the field accepts
+             any theme icon name or file path. -->
+        <entry name="fanIcon" type="String">
+            <default></default>
         </entry>
         <!-- Strip font: empty family / size 0 = follow the theme -->
         <entry name="fontFamily" type="String">
@@ -153,6 +177,14 @@
         </entry>
         <entry name="gpuTempThreshold" type="Int">
             <default>80</default>
+        </entry>
+        <!-- Fan speed has no meaningful "+10" step, so it carries its own
+             warning and critical RPM values. -->
+        <entry name="fanThreshold" type="Int">
+            <default>4000</default>
+        </entry>
+        <entry name="fanCriticalThreshold" type="Int">
+            <default>5000</default>
         </entry>
     </group>
 </kcfg>

@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow the `Version` field in `metadata.json` (tag `v<version>`).
 
+## [Unreleased]
+
+### Added
+- Fan speed as a fifth metric. The Appearance settings page lists the RPM
+  sensors KSystemStats publishes (typically one `lmsensors/<chip>/fanN` sensor
+  per fan through lm_sensors) and the picked one is shown in the strip. The
+  metric stays hidden until a sensor is chosen, since the sensor IDs are
+  machine-specific. Fan speed carries its own warning and critical RPM
+  thresholds: the shared "threshold + 10" step does not fit RPM.
+
 ## [2.2] - 2026-07-15
 
 ### Changed

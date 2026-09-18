@@ -24,14 +24,18 @@ KCM.SimpleKCM {
     property bool cfg_diskShown; property bool cfg_diskShownDefault: false
     property bool cfg_cpuShown; property bool cfg_cpuShownDefault: false
     property bool cfg_gpuShown; property bool cfg_gpuShownDefault: false
+    property bool cfg_fanShown; property bool cfg_fanShownDefault: false
+    property string cfg_fanSensorId; property string cfg_fanSensorIdDefault: ""
     property string cfg_ramParts; property string cfg_ramPartsDefault: ""
     property string cfg_diskParts; property string cfg_diskPartsDefault: ""
     property string cfg_cpuParts; property string cfg_cpuPartsDefault: ""
     property string cfg_gpuParts; property string cfg_gpuPartsDefault: ""
+    property string cfg_fanParts; property string cfg_fanPartsDefault: ""
     property string cfg_ramFormat; property string cfg_ramFormatDefault: ""
     property string cfg_diskFormat; property string cfg_diskFormatDefault: ""
     property string cfg_cpuFormat; property string cfg_cpuFormatDefault: ""
     property string cfg_gpuFormat; property string cfg_gpuFormatDefault: ""
+    property string cfg_fanFormat; property string cfg_fanFormatDefault: ""
     property int cfg_labelStyle; property int cfg_labelStyleDefault: 0
     property int cfg_fontSize; property int cfg_fontSizeDefault: 0
     property string cfg_fontFamily; property string cfg_fontFamilyDefault: ""
@@ -49,10 +53,12 @@ KCM.SimpleKCM {
     property string cfg_diskLabel; property string cfg_diskLabelDefault: ""
     property string cfg_cpuLabel; property string cfg_cpuLabelDefault: ""
     property string cfg_gpuLabel; property string cfg_gpuLabelDefault: ""
+    property string cfg_fanLabel; property string cfg_fanLabelDefault: ""
     property string cfg_ramIcon; property string cfg_ramIconDefault: ""
     property string cfg_diskIcon; property string cfg_diskIconDefault: ""
     property string cfg_cpuIcon; property string cfg_cpuIconDefault: ""
     property string cfg_gpuIcon; property string cfg_gpuIconDefault: ""
+    property string cfg_fanIcon; property string cfg_fanIconDefault: ""
     property string cfg_textColor; property string cfg_textColorDefault: ""
     property string cfg_labelColor; property string cfg_labelColorDefault: ""
     property string cfg_warningColor; property string cfg_warningColorDefault: ""
@@ -63,6 +69,8 @@ KCM.SimpleKCM {
     property int cfg_cpuTempThresholdDefault: 0
     property int cfg_gpuUsageThresholdDefault: 0
     property int cfg_gpuTempThresholdDefault: 0
+    property int cfg_fanThresholdDefault: 0
+    property int cfg_fanCriticalThresholdDefault: 0
 
     property alias cfg_updateInterval: updateIntervalSpin.value
     property alias cfg_ramThreshold: ramSpin.value
@@ -71,6 +79,8 @@ KCM.SimpleKCM {
     property alias cfg_cpuTempThreshold: cpuTempSpin.value
     property alias cfg_gpuUsageThreshold: gpuUsageSpin.value
     property alias cfg_gpuTempThreshold: gpuTempSpin.value
+    property alias cfg_fanThreshold: fanSpin.value
+    property alias cfg_fanCriticalThreshold: fanCriticalSpin.value
 
     component FieldLabel : QQC2.Label {
         Layout.alignment: Qt.AlignRight
@@ -85,6 +95,8 @@ KCM.SimpleKCM {
         cfg_cpuTempThreshold = cfg_cpuTempThresholdDefault;
         cfg_gpuUsageThreshold = cfg_gpuUsageThresholdDefault;
         cfg_gpuTempThreshold = cfg_gpuTempThresholdDefault;
+        cfg_fanThreshold = cfg_fanThresholdDefault;
+        cfg_fanCriticalThreshold = cfg_fanCriticalThresholdDefault;
     }
 
     // Rendered right-aligned on the page-title row by the dialog's header
@@ -124,7 +136,7 @@ KCM.SimpleKCM {
 
         QQC2.Label {
             Layout.fillWidth: true
-            text: i18n("Values turn amber at the threshold and red at threshold + 10. Disk only ever turns amber.")
+            text: i18n("Values turn amber at the threshold and red at threshold + 10. Disk only ever turns amber; the fan speed has its own warning and critical values.")
             font: Kirigami.Theme.smallFont
             wrapMode: Text.WordWrap
         }
@@ -175,6 +187,22 @@ KCM.SimpleKCM {
                 id: gpuTempSpin
                 from: 30
                 to: 110
+            }
+
+            FieldLabel { text: i18n("Fan speed alert (RPM):") }
+            QQC2.SpinBox {
+                id: fanSpin
+                from: 100
+                to: 20000
+                stepSize: 100
+            }
+
+            FieldLabel { text: i18n("Fan speed critical (RPM):") }
+            QQC2.SpinBox {
+                id: fanCriticalSpin
+                from: 100
+                to: 20000
+                stepSize: 100
             }
         }
     }

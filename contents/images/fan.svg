@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- Fallback label icon for the fan metric: Breeze ships no fan icon, so
+       the widget brings its own. Monochrome grey so it reads at panel size in
+       a dark or a light theme. -->
+  <g fill="#9aa4ae">
+    <ellipse cx="12" cy="7.1" rx="2.1" ry="3.3" transform="rotate(18 12 12)"/>
+    <ellipse cx="12" cy="7.1" rx="2.1" ry="3.3" transform="rotate(108 12 12)"/>
+    <ellipse cx="12" cy="7.1" rx="2.1" ry="3.3" transform="rotate(198 12 12)"/>
+    <ellipse cx="12" cy="7.1" rx="2.1" ry="3.3" transform="rotate(288 12 12)"/>
+    <circle cx="12" cy="12" r="2.3"/>
+  </g>
+</svg>

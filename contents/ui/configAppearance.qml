@@ -6,6 +6,7 @@ import org.kde.kirigami as Kirigami
 import org.kde.kcmutils as KCM
 import org.kde.kquickcontrols as KQuickControls
 import org.kde.iconthemes as KIconThemes
+import org.kde.ksysguard.sensors as Sensors
 
 KCM.SimpleKCM {
     id: page
@@ -31,23 +32,29 @@ KCM.SimpleKCM {
     property bool cfg_diskShownDefault: false
     property bool cfg_cpuShownDefault: false
     property bool cfg_gpuShownDefault: false
+    property bool cfg_fanShownDefault: false
+    property string cfg_fanSensorIdDefault: ""
     property string cfg_ramPartsDefault: ""
     property string cfg_diskPartsDefault: ""
     property string cfg_cpuPartsDefault: ""
     property string cfg_gpuPartsDefault: ""
+    property string cfg_fanPartsDefault: ""
     property string cfg_ramFormatDefault: ""
     property string cfg_diskFormatDefault: ""
     property string cfg_cpuFormatDefault: ""
     property string cfg_gpuFormatDefault: ""
+    property string cfg_fanFormatDefault: ""
     property int cfg_labelStyleDefault: 0
     property string cfg_ramLabelDefault: ""
     property string cfg_diskLabelDefault: ""
     property string cfg_cpuLabelDefault: ""
     property string cfg_gpuLabelDefault: ""
+    property string cfg_fanLabelDefault: ""
     property string cfg_ramIconDefault: ""
     property string cfg_diskIconDefault: ""
     property string cfg_cpuIconDefault: ""
     property string cfg_gpuIconDefault: ""
+    property string cfg_fanIconDefault: ""
     property int cfg_fontSizeDefault: 0
     property string cfg_fontFamilyDefault: ""
     property int cfg_valueWidthDefault: 0
@@ -74,6 +81,8 @@ KCM.SimpleKCM {
     property int cfg_cpuTempThreshold; property int cfg_cpuTempThresholdDefault: 0
     property int cfg_gpuUsageThreshold; property int cfg_gpuUsageThresholdDefault: 0
     property int cfg_gpuTempThreshold; property int cfg_gpuTempThresholdDefault: 0
+    property int cfg_fanThreshold; property int cfg_fanThresholdDefault: 0
+    property int cfg_fanCriticalThreshold; property int cfg_fanCriticalThresholdDefault: 0
 
     // Strip content: metricOrder + per-metric Shown/Parts (ordered
     // comma-separated part keys, or "custom" with a <metric>Format template)
@@ -85,14 +94,18 @@ KCM.SimpleKCM {
     property bool cfg_diskShown
     property bool cfg_cpuShown
     property bool cfg_gpuShown
+    property bool cfg_fanShown
+    property string cfg_fanSensorId
     property string cfg_ramParts
     property string cfg_diskParts
     property string cfg_cpuParts
     property string cfg_gpuParts
+    property string cfg_fanParts
     property string cfg_ramFormat
     property string cfg_diskFormat
     property string cfg_cpuFormat
     property string cfg_gpuFormat
+    property string cfg_fanFormat
     property int cfg_labelStyle
 
     property bool syncingMetrics: false
@@ -111,21 +124,47 @@ KCM.SimpleKCM {
         syncingMetrics = false;
     }
 
+    function metricMeta() {
+        return {
+            ram: { label: i18n("RAM"), thermal: false, fan: false, shown: cfg_ramShown, parts: cfg_ramParts, format: cfg_ramFormat },
+            disk: { label: i18n("Disk"), thermal: false, fan: false, shown: cfg_diskShown, parts: cfg_diskParts, format: cfg_diskFormat },
+            cpu: { label: i18n("CPU"), thermal: true, fan: false, shown: cfg_cpuShown, parts: cfg_cpuParts, format: cfg_cpuFormat },
+            gpu: { label: i18n("GPU"), thermal: true, fan: false, shown: cfg_gpuShown, parts: cfg_gpuParts, format: cfg_gpuFormat },
+            fan: { label: i18n("Fan"), thermal: false, fan: true, shown: cfg_fanShown, parts: cfg_fanParts, format: cfg_fanFormat }
+        };
+    }
+
+    // The stored order is the left-to-right order of the strip and the list of
+    // known metrics at once. A metric added by a newer version is missing from
+    // an order an older version stored, so append whatever it does not name yet
+    // — otherwise the fan row could never appear for an existing user.
+    function metricKeysInOrder() {
+        const meta = metricMeta();
+        const keys = cfg_metricOrder.split(",").map(k => k.trim()).filter(k => meta[k] !== undefined);
+        Object.keys(meta).forEach(k => {
+            if (!keys.includes(k)) {
+                keys.push(k);
+            }
+        });
+        return keys;
+    }
+
     function rebuildMetricModel() {
         if (syncingMetrics) {
             return;
         }
-        const meta = {
-            ram: { label: i18n("RAM"), thermal: false, shown: cfg_ramShown, parts: cfg_ramParts, format: cfg_ramFormat },
-            disk: { label: i18n("Disk"), thermal: false, shown: cfg_diskShown, parts: cfg_diskParts, format: cfg_diskFormat },
-            cpu: { label: i18n("CPU"), thermal: true, shown: cfg_cpuShown, parts: cfg_cpuParts, format: cfg_cpuFormat },
-            gpu: { label: i18n("GPU"), thermal: true, shown: cfg_gpuShown, parts: cfg_gpuParts, format: cfg_gpuFormat }
-        };
+        const meta = metricMeta();
         metricModel.clear();
-        cfg_metricOrder.split(",").map(k => k.trim()).forEach(k => {
-            if (meta[k] !== undefined) {
-                metricModel.append({ key: k, label: meta[k].label, thermal: meta[k].thermal, shown: meta[k].shown, parts: meta[k].parts, format: meta[k].format });
-            }
+        metricKeysInOrder().forEach(k => {
+            metricModel.append({
+                key: k,
+                label: meta[k].label,
+                thermal: meta[k].thermal,
+                fan: meta[k].fan,
+                shown: meta[k].shown,
+                parts: meta[k].parts,
+                format: meta[k].format
+            });
         });
     }
 
@@ -134,14 +173,17 @@ KCM.SimpleKCM {
     onCfg_diskShownChanged: rebuildMetricModel()
     onCfg_cpuShownChanged: rebuildMetricModel()
     onCfg_gpuShownChanged: rebuildMetricModel()
+    onCfg_fanShownChanged: rebuildMetricModel()
     onCfg_ramPartsChanged: rebuildMetricModel()
     onCfg_diskPartsChanged: rebuildMetricModel()
     onCfg_cpuPartsChanged: rebuildMetricModel()
     onCfg_gpuPartsChanged: rebuildMetricModel()
+    onCfg_fanPartsChanged: rebuildMetricModel()
     onCfg_ramFormatChanged: rebuildMetricModel()
     onCfg_diskFormatChanged: rebuildMetricModel()
     onCfg_cpuFormatChanged: rebuildMetricModel()
     onCfg_gpuFormatChanged: rebuildMetricModel()
+    onCfg_fanFormatChanged: rebuildMetricModel()
     Component.onCompleted: rebuildMetricModel()
 
     // Part choices: value is the ordered parts string stored in config, so
@@ -161,6 +203,55 @@ KCM.SimpleKCM {
         { text: i18n("Temperature + usage %"), value: "temp,usage" },
         { text: i18n("Custom…"), value: "custom" }
     ]
+    readonly property var fanPartChoices: [
+        { text: i18n("Speed (RPM)"), value: "speed" },
+        { text: i18n("Custom…"), value: "custom" }
+    ]
+
+    function partChoices(metric) {
+        if (metric.fan) {
+            return fanPartChoices;
+        }
+        return metric.thermal ? thermalPartChoices : capacityPartChoices;
+    }
+
+    // --- Fan sensor picker ------------------------------------------------
+    // KSystemStats publishes one sensor per fan and their IDs are machine
+    // specific ("lmsensors/<chip>/fanN" on an lm_sensors machine), so the page
+    // lists the daemon's RPM sensors instead of asking for an ID. The tree
+    // model cannot be filtered from QML, so it is walked and the rows whose
+    // display name carries the "(RPM)" unit are kept.
+    Sensors.SensorTreeModel {
+        id: fanSensorTree
+        onRowsInserted: page.refreshFanSensorList()
+    }
+
+    ListModel { id: fanSensorChoices }
+    property bool fanSensorListBuilt: false
+
+    function collectFanSensors(model, parent, out) {
+        const rows = model.rowCount(parent);
+        for (let r = 0; r < rows; r++) {
+            const index = model.index(r, 0, parent);
+            const id = model.data(index, Sensors.SensorTreeModel.SensorId);
+            const display = model.data(index, Qt.DisplayRole);
+            if (id !== undefined && id !== "" && display !== undefined && display.includes("(RPM)")) {
+                out.push({ text: display.replace(" (RPM)", ""), value: id });
+            }
+            if (model.hasChildren(index)) {
+                collectFanSensors(model, index, out);
+            }
+        }
+    }
+
+    function refreshFanSensorList() {
+        const found = [];
+        collectFanSensors(fanSensorTree, fanSensorTree.index(-1, -1), found);
+        fanSensorChoices.clear();
+        fanSensorChoices.append({ text: i18n("None"), value: "" });
+        found.forEach(sensor => fanSensorChoices.append(sensor));
+        fanSensorListBuilt = true;
+    }
 
     // Token + what it maps to, per metric — rendered as click-to-insert
     // chips under the custom format field.
@@ -180,6 +271,13 @@ KCM.SimpleKCM {
                 { token: "{vram}", desc: i18n("VRAM used") },
                 { token: "{vramtotal}", desc: i18n("VRAM total") },
                 { token: "{power}", desc: i18n("power draw") }
+            ];
+        }
+        if (key === "fan") {
+            return [
+                { token: "{speed}", desc: i18n("speed with RPM") },
+                { token: "{rpm}", desc: i18n("speed number") },
+                { token: "{name}", desc: i18n("sensor name") }
             ];
         }
         return [
@@ -238,10 +336,12 @@ KCM.SimpleKCM {
     property alias cfg_diskLabel: diskLabelField.text
     property alias cfg_cpuLabel: cpuLabelField.text
     property alias cfg_gpuLabel: gpuLabelField.text
+    property alias cfg_fanLabel: fanLabelField.text
     property alias cfg_ramIcon: ramIconField.text
     property alias cfg_diskIcon: diskIconField.text
     property alias cfg_cpuIcon: cpuIconField.text
     property alias cfg_gpuIcon: gpuIconField.text
+    property alias cfg_fanIcon: fanIconField.text
     property alias cfg_showSeparators: showSeparatorsCheck.checked
     property alias cfg_valueGap: valueGapSpin.value
     property alias cfg_groupGap: groupGapSpin.value
@@ -264,23 +364,29 @@ KCM.SimpleKCM {
         cfg_diskShown = cfg_diskShownDefault;
         cfg_cpuShown = cfg_cpuShownDefault;
         cfg_gpuShown = cfg_gpuShownDefault;
+        cfg_fanShown = cfg_fanShownDefault;
+        cfg_fanSensorId = cfg_fanSensorIdDefault;
         cfg_ramParts = cfg_ramPartsDefault;
         cfg_diskParts = cfg_diskPartsDefault;
         cfg_cpuParts = cfg_cpuPartsDefault;
         cfg_gpuParts = cfg_gpuPartsDefault;
+        cfg_fanParts = cfg_fanPartsDefault;
         cfg_ramFormat = cfg_ramFormatDefault;
         cfg_diskFormat = cfg_diskFormatDefault;
         cfg_cpuFormat = cfg_cpuFormatDefault;
         cfg_gpuFormat = cfg_gpuFormatDefault;
+        cfg_fanFormat = cfg_fanFormatDefault;
         cfg_labelStyle = cfg_labelStyleDefault;
         cfg_ramLabel = cfg_ramLabelDefault;
         cfg_diskLabel = cfg_diskLabelDefault;
         cfg_cpuLabel = cfg_cpuLabelDefault;
         cfg_gpuLabel = cfg_gpuLabelDefault;
+        cfg_fanLabel = cfg_fanLabelDefault;
         cfg_ramIcon = cfg_ramIconDefault;
         cfg_diskIcon = cfg_diskIconDefault;
         cfg_cpuIcon = cfg_cpuIconDefault;
         cfg_gpuIcon = cfg_gpuIconDefault;
+        cfg_fanIcon = cfg_fanIconDefault;
         cfg_fontFamily = cfg_fontFamilyDefault;
         cfg_fontSize = cfg_fontSizeDefault;
         cfg_valueWidth = cfg_valueWidthDefault;
@@ -396,6 +502,9 @@ KCM.SimpleKCM {
         if (key === "disk") {
             return { usage: "67%", used: "1.2 TiB", free: "610 GiB", total: "1.8 TiB" };
         }
+        if (key === "fan") {
+            return { speed: "2520 RPM", rpm: "2520", name: "cpu_fan" };
+        }
         return { usage: "42%", used: "13.4 GiB", free: "18.2 GiB", total: "31.6 GiB" };
     }
 
@@ -405,8 +514,12 @@ KCM.SimpleKCM {
             const tpl = key === "ram" ? cfg_ramFormat
                       : key === "disk" ? cfg_diskFormat
                       : key === "cpu" ? cfg_cpuFormat
+                      : key === "fan" ? cfg_fanFormat
                       : cfg_gpuFormat;
             return tpl.replace(/\{(\w+)\}/g, (match, name) => vars[name] !== undefined ? vars[name] : match);
+        }
+        if (key === "fan") {
+            return vars.speed;
         }
         return part === "temp" ? vars.temp : part === "abs" ? vars.used : vars.usage;
     }
@@ -415,20 +528,25 @@ KCM.SimpleKCM {
         return key === "ram" ? cfg_ramLabel
              : key === "disk" ? cfg_diskLabel
              : key === "cpu" ? cfg_cpuLabel
-             : cfg_gpuLabel;
+             : key === "gpu" ? cfg_gpuLabel
+             : cfg_fanLabel;
     }
 
     function previewIcon(key) {
+        if (key === "fan" && cfg_fanIcon === "") {
+            return Qt.resolvedUrl("../images/fan.svg");
+        }
         return key === "ram" ? cfg_ramIcon
              : key === "disk" ? cfg_diskIcon
              : key === "cpu" ? cfg_cpuIcon
-             : cfg_gpuIcon;
+             : key === "gpu" ? cfg_gpuIcon
+             : cfg_fanIcon;
     }
 
     readonly property var previewMetrics: {
-        const shown = { ram: cfg_ramShown, disk: cfg_diskShown, cpu: cfg_cpuShown, gpu: cfg_gpuShown };
-        const parts = { ram: cfg_ramParts, disk: cfg_diskParts, cpu: cfg_cpuParts, gpu: cfg_gpuParts };
-        return cfg_metricOrder.split(",").map(k => k.trim())
+        const shown = { ram: cfg_ramShown, disk: cfg_diskShown, cpu: cfg_cpuShown, gpu: cfg_gpuShown, fan: cfg_fanShown && cfg_fanSensorId !== "" };
+        const parts = { ram: cfg_ramParts, disk: cfg_diskParts, cpu: cfg_cpuParts, gpu: cfg_gpuParts, fan: cfg_fanParts };
+        return metricKeysInOrder()
             .filter(k => shown[k] !== undefined && shown[k] && parts[k] !== "")
             .map(k => ({ key: k, parts: parts[k].split(",") }));
     }
@@ -560,6 +678,7 @@ KCM.SimpleKCM {
                 required property string key
                 required property string label
                 required property bool thermal
+                required property bool fan
                 required property bool shown
                 required property string parts
                 required property string format
@@ -598,12 +717,64 @@ KCM.SimpleKCM {
                         DisplayCombo {
                             Layout.fillWidth: true
                             enabled: metricRow.shown
-                            model: metricRow.thermal ? page.thermalPartChoices : page.capacityPartChoices
+                            model: page.partChoices(metricRow)
                             onActivated: {
                                 metricModel.setProperty(metricRow.index, "parts", currentValue);
                                 page.saveMetrics();
                             }
                             Component.onCompleted: currentIndex = indexOfValue(metricRow.parts)
+                        }
+                    }
+
+                    // Fan sensor picker: only the fan row needs one.
+                    ColumnLayout {
+                        visible: metricRow.fan
+                        Layout.leftMargin: Kirigami.Units.gridUnit * 2
+                        spacing: Kirigami.Units.smallSpacing / 2
+
+                        QQC2.Label {
+                            text: i18n("Fan sensor:")
+                            font: Kirigami.Theme.smallFont
+                        }
+
+                        QQC2.ComboBox {
+                            id: fanSensorCombo
+
+                            Layout.fillWidth: true
+                            enabled: metricRow.shown
+                            textRole: "text"
+                            valueRole: "value"
+                            model: fanSensorChoices
+                            onActivated: page.cfg_fanSensorId = currentValue
+                            Component.onCompleted: syncCurrent()
+                            // The daemon's sensor list arrives asynchronously,
+                            // so rebuild it as the popup opens rather than once
+                            // at load time.
+                            onPressedChanged: if (pressed) {
+                                page.refreshFanSensorList();
+                                syncCurrent();
+                            }
+                            Connections {
+                                target: page
+                                function onCfg_fanSensorIdChanged() {
+                                    fanSensorCombo.syncCurrent();
+                                }
+                            }
+                            function syncCurrent() {
+                                currentIndex = Math.max(0, indexOfValue(page.cfg_fanSensorId));
+                            }
+                        }
+
+                        QQC2.Label {
+                            Layout.fillWidth: true
+                            text: !page.fanSensorListBuilt
+                                ? i18n("The list loads when you open it: every RPM sensor KSystemStats publishes.")
+                                : fanSensorChoices.count > 1
+                                  ? i18n("Reads any RPM sensor KSystemStats publishes — usually from lm_sensors.")
+                                  : i18n("No fan sensor found. KSystemStats publishes fan speeds only when the hardware reports them.")
+                            font: Kirigami.Theme.smallFont
+                            opacity: 0.7
+                            wrapMode: Text.WordWrap
                         }
                     }
 
@@ -718,6 +889,8 @@ KCM.SimpleKCM {
             LabelField { id: cpuLabelField }
             FieldLabel { text: i18n("GPU label:") }
             LabelField { id: gpuLabelField }
+            FieldLabel { text: i18n("Fan label:") }
+            LabelField { id: fanLabelField }
 
             FieldLabel { text: i18n("RAM icon:") }
             IconField { id: ramIconField }
@@ -727,6 +900,8 @@ KCM.SimpleKCM {
             IconField { id: cpuIconField }
             FieldLabel { text: i18n("GPU icon:") }
             IconField { id: gpuIconField }
+            FieldLabel { text: i18n("Fan icon:") }
+            IconField { id: fanIconField }
 
             QQC2.Label {
                 Layout.columnSpan: 2
