@@ -565,119 +565,128 @@ KCM.SimpleKCM {
                 required property string format
 
                 width: metricList.width
-                implicitHeight: rowColumn.implicitHeight + Kirigami.Units.smallSpacing
+                implicitHeight: draggingRow.implicitHeight
 
-                ColumnLayout {
-                    id: rowColumn
-                    anchors.verticalCenter: parent.verticalCenter
+                // The drag handle is handed this child, not the delegate itself:
+                // ListItemDragHandle reparents whatever it is given to the ListView,
+                // and Kirigami requires that item to be a child of the delegate.
+                Item {
+                    id: draggingRow
                     width: parent.width
-                    spacing: Kirigami.Units.smallSpacing
-
-                    RowLayout {
-                        spacing: Kirigami.Units.smallSpacing
-
-                        Kirigami.ListItemDragHandle {
-                            listItem: metricRow
-                            listView: metricList
-                            Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
-                            Layout.fillHeight: true
-                            onMoveRequested: (oldIndex, newIndex) => metricModel.move(oldIndex, newIndex, 1)
-                            onDropped: page.saveMetrics()
-                        }
-
-                        QQC2.CheckBox {
-                            text: metricRow.label
-                            checked: metricRow.shown
-                            Layout.preferredWidth: Kirigami.Units.gridUnit * 5
-                            onToggled: {
-                                metricModel.setProperty(metricRow.index, "shown", checked);
-                                page.saveMetrics();
-                            }
-                        }
-
-                        DisplayCombo {
-                            Layout.fillWidth: true
-                            enabled: metricRow.shown
-                            model: metricRow.thermal ? page.thermalPartChoices : page.capacityPartChoices
-                            onActivated: {
-                                metricModel.setProperty(metricRow.index, "parts", currentValue);
-                                page.saveMetrics();
-                            }
-                            Component.onCompleted: currentIndex = indexOfValue(metricRow.parts)
-                        }
-                    }
+                    implicitHeight: rowColumn.implicitHeight + Kirigami.Units.smallSpacing
 
                     ColumnLayout {
-                        visible: metricRow.parts === "custom"
-                        Layout.leftMargin: Kirigami.Units.gridUnit * 2
-                        spacing: Kirigami.Units.smallSpacing / 2
+                        id: rowColumn
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width
+                        spacing: Kirigami.Units.smallSpacing
 
-                        QQC2.TextField {
-                            id: formatField
-                            Layout.fillWidth: true
-                            text: metricRow.format
-                            enabled: metricRow.shown
-                            onEditingFinished: {
-                                metricModel.setProperty(metricRow.index, "format", text);
-                                page.saveMetrics();
+                        RowLayout {
+                            spacing: Kirigami.Units.smallSpacing
+
+                            Kirigami.ListItemDragHandle {
+                                listItem: draggingRow
+                                listView: metricList
+                                Layout.preferredWidth: Kirigami.Units.iconSizes.smallMedium
+                                Layout.fillHeight: true
+                                onMoveRequested: (oldIndex, newIndex) => metricModel.move(oldIndex, newIndex, 1)
+                                onDropped: page.saveMetrics()
+                            }
+
+                            QQC2.CheckBox {
+                                text: metricRow.label
+                                checked: metricRow.shown
+                                Layout.preferredWidth: Kirigami.Units.gridUnit * 5
+                                onToggled: {
+                                    metricModel.setProperty(metricRow.index, "shown", checked);
+                                    page.saveMetrics();
+                                }
+                            }
+
+                            DisplayCombo {
+                                Layout.fillWidth: true
+                                enabled: metricRow.shown
+                                model: metricRow.thermal ? page.thermalPartChoices : page.capacityPartChoices
+                                onActivated: {
+                                    metricModel.setProperty(metricRow.index, "parts", currentValue);
+                                    page.saveMetrics();
+                                }
+                                Component.onCompleted: currentIndex = indexOfValue(metricRow.parts)
                             }
                         }
 
-                        QQC2.Label {
-                            text: i18n("Click a value to insert it:")
-                            font: Kirigami.Theme.smallFont
-                            opacity: 0.7
-                        }
+                        ColumnLayout {
+                            visible: metricRow.parts === "custom"
+                            Layout.leftMargin: Kirigami.Units.gridUnit * 2
+                            spacing: Kirigami.Units.smallSpacing / 2
 
-                        Flow {
-                            Layout.fillWidth: true
-                            spacing: Kirigami.Units.smallSpacing
+                            QQC2.TextField {
+                                id: formatField
+                                Layout.fillWidth: true
+                                text: metricRow.format
+                                enabled: metricRow.shown
+                                onEditingFinished: {
+                                    metricModel.setProperty(metricRow.index, "format", text);
+                                    page.saveMetrics();
+                                }
+                            }
 
-                            Repeater {
-                                model: page.variableDefs(metricRow.key)
+                            QQC2.Label {
+                                text: i18n("Click a value to insert it:")
+                                font: Kirigami.Theme.smallFont
+                                opacity: 0.7
+                            }
 
-                                delegate: QQC2.Button {
-                                    id: chip
+                            Flow {
+                                Layout.fillWidth: true
+                                spacing: Kirigami.Units.smallSpacing
 
-                                    required property var modelData
+                                Repeater {
+                                    model: page.variableDefs(metricRow.key)
 
-                                    enabled: metricRow.shown
-                                    // Don't steal focus — the field keeps its
-                                    // cursor position for the insertion.
-                                    focusPolicy: Qt.NoFocus
+                                    delegate: QQC2.Button {
+                                        id: chip
 
-                                    // The style's button background doesn't size
-                                    // itself from a custom contentItem, so pin the
-                                    // implicit size to content + padding explicitly.
-                                    padding: Kirigami.Units.smallSpacing
-                                    leftPadding: Kirigami.Units.smallSpacing * 2
-                                    rightPadding: Kirigami.Units.smallSpacing * 2
-                                    implicitWidth: chipRow.implicitWidth + leftPadding + rightPadding
-                                    implicitHeight: chipRow.implicitHeight + topPadding + bottomPadding
+                                        required property var modelData
 
-                                    onClicked: {
-                                        const pos = formatField.cursorPosition;
-                                        formatField.text = formatField.text.slice(0, pos)
-                                            + chip.modelData.token
-                                            + formatField.text.slice(pos);
-                                        formatField.cursorPosition = pos + chip.modelData.token.length;
-                                        metricModel.setProperty(metricRow.index, "format", formatField.text);
-                                        page.saveMetrics();
-                                    }
+                                        enabled: metricRow.shown
+                                        // Don't steal focus — the field keeps its
+                                        // cursor position for the insertion.
+                                        focusPolicy: Qt.NoFocus
 
-                                    contentItem: RowLayout {
-                                        id: chipRow
-                                        spacing: Kirigami.Units.smallSpacing
+                                        // The style's button background doesn't size
+                                        // itself from a custom contentItem, so pin the
+                                        // implicit size to content + padding explicitly.
+                                        padding: Kirigami.Units.smallSpacing
+                                        leftPadding: Kirigami.Units.smallSpacing * 2
+                                        rightPadding: Kirigami.Units.smallSpacing * 2
+                                        implicitWidth: chipRow.implicitWidth + leftPadding + rightPadding
+                                        implicitHeight: chipRow.implicitHeight + topPadding + bottomPadding
 
-                                        QQC2.Label {
-                                            text: chip.modelData.token
-                                            font.family: "monospace"
-                                            font.bold: true
+                                        onClicked: {
+                                            const pos = formatField.cursorPosition;
+                                            formatField.text = formatField.text.slice(0, pos)
+                                                + chip.modelData.token
+                                                + formatField.text.slice(pos);
+                                            formatField.cursorPosition = pos + chip.modelData.token.length;
+                                            metricModel.setProperty(metricRow.index, "format", formatField.text);
+                                            page.saveMetrics();
                                         }
-                                        QQC2.Label {
-                                            text: chip.modelData.desc
-                                            font: Kirigami.Theme.smallFont
-                                            opacity: 0.7
+
+                                        contentItem: RowLayout {
+                                            id: chipRow
+                                            spacing: Kirigami.Units.smallSpacing
+
+                                            QQC2.Label {
+                                                text: chip.modelData.token
+                                                font.family: "monospace"
+                                                font.bold: true
+                                            }
+                                            QQC2.Label {
+                                                text: chip.modelData.desc
+                                                font: Kirigami.Theme.smallFont
+                                                opacity: 0.7
+                                            }
                                         }
                                     }
                                 }
