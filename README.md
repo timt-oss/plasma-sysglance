@@ -34,9 +34,10 @@ Clicking it opens a detail popup; hovering shows a summary tooltip.
   a capacity fact, not an emergency). Thresholds and update interval are
   configurable per metric.
 - **Click popup** — Memory (used / free / total + swap), per-filesystem disk
-  breakdown (used / free / total for every local filesystem), per-core CPU grid
-  (usage, temperature, frequency), and GPU details (VRAM, power draw,
-  core/memory clocks, rolling 10-minute temperature peak).
+  breakdown (used / free / total for each counted filesystem), per-core CPU grid
+  (usage, temperature, frequency), GPU details (VRAM, power draw,
+  core/memory clocks, rolling 10-minute temperature peak), and fan speed for the
+  RPM sensor picked in Settings.
 - **Hover tooltip** — one-line summary per device.
 - Reads everything from KSystemStats via `org.kde.ksysguard.sensors` — the
   same daemon Plasma's own System Monitor widgets use — except the disk
