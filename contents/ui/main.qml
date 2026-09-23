@@ -8,6 +8,8 @@ import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
 import org.kde.ksysguard.sensors as Sensors
 
+import "diskusage.js" as DiskUsage
+
 PlasmoidItem {
     id: root
 
@@ -15,16 +17,78 @@ PlasmoidItem {
 
     readonly property int rateMs: Plasmoid.configuration.updateInterval * 1000
 
+    // --- Disk accounting ----------------------------------------------------
+    //
+    // The DISK metric deliberately does not read KSystemStats' disk/all/*
+    // sensors. That aggregate gives one volume object to a LUKS container and
+    // another to the filesystem on it whenever Solid lists both, so a single
+    // filesystem is counted twice: on a LUKS + btrfs machine the strip claims
+    // 948.7 GiB for a 474.3 GiB disk, with the used amount doubled too.
+    // findmnt reports the kernel's mount table, where each mount appears once,
+    // so the numbers are built from that instead — see contents/ui/diskusage.js
+    // for the rules and for why the used amount is capacity minus available.
+    //
+    // diskUsage stays null until the first read arrives, so an unreachable
+    // findmnt shows "—" rather than a plausible-looking 0%.
+    property var diskUsage: null
+    property string diskError: ""
+
+    readonly property bool diskKnown: root.diskUsage !== null
+
+    // Capacity changes far more slowly than the strip's own interval, and every
+    // read is a process, so disks refresh on their own 10 s floor.
+    Timer {
+        interval: Math.max(root.rateMs, 10000)
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.refreshDisks()
+    }
+
+    P5Support.DataSource {
+        id: diskExec
+        engine: "executable"
+        connectedSources: []
+        onNewData: (source, data) => {
+            root.readDisks(data && data["stdout"] ? data["stdout"] : "");
+            disconnectSource(source);
+        }
+    }
+
+    function refreshDisks() {
+        if (diskExec.connectedSources.length > 0) {
+            return;                            // one read in flight at a time
+        }
+        diskExec.connectSource("findmnt -J -b -l -o SOURCE,TARGET,FSTYPE,SIZE,AVAIL");
+    }
+
+    function readDisks(stdout) {
+        const read = DiskUsage.report(stdout);
+        if (read.total <= 0) {
+            // findmnt missing, or its output is not what we expect: keep the
+            // last good values and say so in the popup.
+            root.diskError = i18n("no readable mount table (findmnt)");
+            return;
+        }
+        root.diskError = "";
+        root.diskUsage = read;
+    }
+
+    // Disk values for the strip, tooltip and popup — "—" until the first read.
+    function fmtBytes(bytes) { return DiskUsage.formatBytes(bytes); }
+    function diskPercent() { return root.diskKnown ? pct(root.diskUsage.percent) : "—"; }
+    function diskUsed()    { return root.diskKnown ? fmtBytes(root.diskUsage.used) : "—"; }
+    function diskFree()    { return root.diskKnown ? fmtBytes(root.diskUsage.free) : "—"; }
+    function diskTotal()   { return root.diskKnown ? fmtBytes(root.diskUsage.total) : "—"; }
+
+    readonly property var diskFilesystems: root.diskKnown ? root.diskUsage.filesystems : []
+
     // Sensors used by the panel strip and tooltip — always subscribed.
     // Popup-only sensors live inside fullRepresentation so they are lazy.
     Sensors.Sensor { id: ramSensor;    sensorId: "memory/physical/usedPercent"; updateRateLimit: root.rateMs }
     Sensors.Sensor { id: ramUsed;      sensorId: "memory/physical/used";        updateRateLimit: root.rateMs }
     Sensors.Sensor { id: ramTotal;     sensorId: "memory/physical/total";       updateRateLimit: root.rateMs }
     Sensors.Sensor { id: ramFree;      sensorId: "memory/physical/free";        updateRateLimit: root.rateMs }
-    Sensors.Sensor { id: diskFree;     sensorId: "disk/all/free";               updateRateLimit: root.rateMs }
-    Sensors.Sensor { id: diskSensor;   sensorId: "disk/all/usedPercent";        updateRateLimit: root.rateMs }
-    Sensors.Sensor { id: diskUsed;     sensorId: "disk/all/used";               updateRateLimit: root.rateMs }
-    Sensors.Sensor { id: diskTotal;    sensorId: "disk/all/total";              updateRateLimit: root.rateMs }
     Sensors.Sensor { id: cpuUsage;     sensorId: "cpu/all/usage";               updateRateLimit: root.rateMs }
     Sensors.Sensor { id: cpuTempAvg;   sensorId: "cpu/all/averageTemperature";  updateRateLimit: root.rateMs }
     Sensors.Sensor { id: cpuTempMax;   sensorId: "cpu/all/maximumTemperature";  updateRateLimit: root.rateMs }
@@ -176,7 +240,7 @@ PlasmoidItem {
             return { usage: pct(ramSensor.value), used: fmt(ramUsed), free: fmt(ramFree), total: fmt(ramTotal) };
         }
         if (metric === "disk") {
-            return { usage: pct(diskSensor.value), used: fmt(diskUsed), free: fmt(diskFree), total: fmt(diskTotal) };
+            return { usage: diskPercent(), used: diskUsed(), free: diskFree(), total: diskTotal() };
         }
         if (metric === "cpu") {
             return { usage: pct(cpuUsage.value), temp: deg(cpuTempMax.value), tempavg: deg(cpuTempAvg.value) };
@@ -212,7 +276,7 @@ PlasmoidItem {
             return part === "abs" ? fmt(ramUsed) : pct(ramSensor.value);
         }
         if (metric === "disk") {
-            return part === "abs" ? fmt(diskUsed) : pct(diskSensor.value);
+            return part === "abs" ? diskUsed() : diskPercent();
         }
         if (metric === "cpu") {
             return part === "temp" ? deg(cpuTempMax.value) : pct(cpuUsage.value);
@@ -280,7 +344,8 @@ PlasmoidItem {
 
     readonly property int ramTier: tier(ramSensor.value, Plasmoid.configuration.ramThreshold)
     // Disk usage is a capacity fact, not an emergency — never goes red
-    readonly property int diskTier: Math.min(tier(diskSensor.value, Plasmoid.configuration.diskThreshold), 1)
+    readonly property int diskTier: Math.min(tier(root.diskUsage !== null ? root.diskUsage.percent : 0,
+                                                 Plasmoid.configuration.diskThreshold), 1)
     readonly property int cpuUsageTier: tier(cpuUsage.value, Plasmoid.configuration.cpuUsageThreshold)
     readonly property int cpuTempTier: tier(cpuTempMax.value, Plasmoid.configuration.cpuTempThreshold)
     readonly property int gpuUsageTier: tier(gpuUsage.value, Plasmoid.configuration.gpuUsageThreshold)
@@ -307,7 +372,7 @@ PlasmoidItem {
         i18n("RAM %1 — %2 of %3",
              pct(ramSensor.value), fmt(ramUsed), fmt(ramTotal)),
         i18n("Disk %1 — %2 of %3 used",
-             pct(diskSensor.value), fmt(diskUsed), fmt(diskTotal)),
+             diskPercent(), diskUsed(), diskTotal()),
         root.fanConfigured ? i18n("Fan %1 — %2", fanName(), rpm(fanValue())) : "",
         "",
         i18n("Click for the full breakdown")
@@ -519,26 +584,25 @@ PlasmoidItem {
 
                 DimLabel { text: i18n("All disks") }
                 DetailLabel {
-                    text: root.pct(diskSensor.value)
+                    text: root.diskPercent()
                     color: root.tierColor(root.diskTier)
                 }
-                DetailLabel { text: i18n("%1 used, %2 free of %3", root.fmt(diskUsed), root.fmt(diskFree), root.fmt(diskTotal)) }
+                DetailLabel { text: i18n("%1 used, %2 free of %3", root.diskUsed(), root.diskFree(), root.diskTotal()) }
 
                 Repeater {
-                    model: [
-                        "disk/26c40217-e4a6-4ebd-bb3b-c6a5d2fb27dd",
-                        "disk/f777a7d5-e2be-4bbb-ba34-8331ab01a060"
-                    ]
+                    // One row per local filesystem, from the same read as the
+                    // "All disks" line above: a device counts once however
+                    // often it is mounted, so a btrfs with / and /home on it
+                    // shows one row.
+                    model: root.diskFilesystems
 
                     delegate: DimLabel {
                         id: partNameLabel
 
-                        required property string modelData
+                        required property var modelData
                         required property int index
 
-                        Sensors.Sensor { id: partName; sensorId: partNameLabel.modelData + "/name"; updateRateLimit: root.rateMs }
-
-                        text: root.fmt(partName)
+                        text: modelData.target
                         Layout.row: 1 + index
                         Layout.column: 0
                         Layout.maximumWidth: Kirigami.Units.gridUnit * 14
@@ -547,45 +611,45 @@ PlasmoidItem {
                 }
 
                 Repeater {
-                    model: [
-                        "disk/26c40217-e4a6-4ebd-bb3b-c6a5d2fb27dd",
-                        "disk/f777a7d5-e2be-4bbb-ba34-8331ab01a060"
-                    ]
+                    model: root.diskFilesystems
 
                     delegate: DetailLabel {
                         id: partPctLabel
 
-                        required property string modelData
+                        required property var modelData
                         required property int index
 
-                        Sensors.Sensor { id: partPct; sensorId: partPctLabel.modelData + "/usedPercent"; updateRateLimit: root.rateMs }
-
-                        text: root.pct(partPct.value)
+                        text: root.pct(modelData.percent)
                         Layout.row: 1 + index
                         Layout.column: 1
                     }
                 }
 
                 Repeater {
-                    model: [
-                        "disk/26c40217-e4a6-4ebd-bb3b-c6a5d2fb27dd",
-                        "disk/f777a7d5-e2be-4bbb-ba34-8331ab01a060"
-                    ]
+                    model: root.diskFilesystems
 
                     delegate: DetailLabel {
                         id: partDetailLabel
 
-                        required property string modelData
+                        required property var modelData
                         required property int index
 
-                        Sensors.Sensor { id: partUsed;  sensorId: partDetailLabel.modelData + "/used";  updateRateLimit: root.rateMs }
-                        Sensors.Sensor { id: partFree;  sensorId: partDetailLabel.modelData + "/free";  updateRateLimit: root.rateMs }
-                        Sensors.Sensor { id: partTotal; sensorId: partDetailLabel.modelData + "/total"; updateRateLimit: root.rateMs }
-
-                        text: i18n("%1 used, %2 free of %3", root.fmt(partUsed), root.fmt(partFree), root.fmt(partTotal))
+                        text: i18n("%1 used, %2 free of %3",
+                                   root.fmtBytes(modelData.used), root.fmtBytes(modelData.free), root.fmtBytes(modelData.total))
                         Layout.row: 1 + index
                         Layout.column: 2
                     }
+                }
+
+                // Only shown when the mount table could not be read at all,
+                // in which case the values above stay at their last good state.
+                DetailLabel {
+                    visible: root.diskError !== ""
+                    text: i18n("Disk values unavailable: %1", root.diskError)
+                    color: root.warnColor
+                    Layout.row: 1 + root.diskFilesystems.length
+                    Layout.column: 0
+                    Layout.columnSpan: 3
                 }
             }
 

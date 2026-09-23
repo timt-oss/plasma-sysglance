@@ -18,6 +18,20 @@ and versions follow the `Version` field in `metadata.json` (tag `v<version>`).
 - Reordering the metric rows on the Appearance settings page did nothing. The
   drag handle was given the ListView's delegate itself, and it reparents
   whatever it is handed to the ListView, so a drag never moved a row.
+- Disk amounts no longer come from KSystemStats' `disk/all/*` sensors, which
+  count one filesystem twice when Solid lists both a LUKS container and the
+  filesystem on it — a 474.3 GiB disk read as 948.7 GiB, with the used amount
+  doubled. They are read from the kernel mount table instead, so the *All
+  disks* line, the tooltip and the popup now agree with `df`.
+- The popup's per-filesystem list is built from that read, which removes the
+  hardcoded partition UUIDs of the machine the widget was written on.
+
+### Changed
+- The DISK metric counts every distinct local filesystem once and sums them:
+  mounts sharing a backing device (btrfs subvolumes, bind mounts) collapse into
+  one entry, and filesystems that are not on a block device (network shares,
+  tmpfs, overlay) are left out. `/boot` and the EFI system partition are local
+  filesystems of their own, so they are included.
 
 ## [2.2] - 2026-07-15
 

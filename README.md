@@ -33,14 +33,17 @@ Clicking it opens a detail popup; hovering shows a summary tooltip.
   and red at threshold + 10. Disk only ever turns amber (a nearly-full disk is
   a capacity fact, not an emergency). Thresholds and update interval are
   configurable per metric.
-- **Click popup** — Memory (used / free / total + swap), per-partition disk
-  breakdown (used / free / total), per-core CPU grid (usage, temperature,
-  frequency), and GPU details (VRAM, power draw, core/memory clocks, rolling
-  10-minute temperature peak).
+- **Click popup** — Memory (used / free / total + swap), per-filesystem disk
+  breakdown (used / free / total for every local filesystem), per-core CPU grid
+  (usage, temperature, frequency), and GPU details (VRAM, power draw,
+  core/memory clocks, rolling 10-minute temperature peak).
 - **Hover tooltip** — one-line summary per device.
 - Reads everything from KSystemStats via `org.kde.ksysguard.sensors` — the
-  same daemon Plasma's own System Monitor widgets use. NVIDIA GPUs work
-  through the daemon's NVML backend; no lm_sensors hwmon entry needed.
+  same daemon Plasma's own System Monitor widgets use — except the disk
+  amounts, which are read from the kernel mount table (`findmnt`) because the
+  daemon's `disk/all/*` aggregate double-counts a filesystem (see *Disk
+  values* below). NVIDIA GPUs work through the daemon's NVML backend; no
+  lm_sensors hwmon entry needed.
 
 ## Releasing
 
@@ -56,6 +59,7 @@ Clicking it opens a detail popup; hovering shows a summary tooltip.
 ## Requirements
 
 - Plasma 6 (`libksysguard` QML bindings, present on any stock install)
+- `findmnt` for the disk amounts (util-linux, present on any stock install)
 - For NVIDIA GPU stats: a working `nvidia-smi`
 
 ## Install
@@ -67,17 +71,30 @@ make upgrade    # after changes (restarts plasmashell)
 
 Then add **System Glance** to a panel via *Add Widgets…*.
 
-## Note
+## Disk values
 
-The per-partition list in the popup currently hardcodes the two partition
-UUIDs of the machine it was written on (KSystemStats has no wildcard sensor
-subscription). Edit the `model` arrays in `contents/ui/main.qml` — find your
-partition IDs with:
+The DISK metric and the popup's disk list are built from the kernel mount table
+(`findmnt -J -b -l -o SOURCE,TARGET,FSTYPE,SIZE,AVAIL`), read once every 10 s.
+The rules are in `contents/ui/diskusage.js`:
 
-```sh
-busctl --user call org.kde.ksystemstats1 /org/kde/ksystemstats1 \
-  org.kde.ksystemstats1 allSensors | tr '"' '\n' | grep '^disk/'
-```
+- every distinct local filesystem counts once — mounts that share a backing
+  device (btrfs subvolumes such as `/` and `/home`, bind mounts) collapse into
+  a single entry, so capacity is never counted twice;
+- filesystems that are not on a block device are left out, which excludes
+  network shares, tmpfs and overlay filesystems;
+- "used" is capacity minus the space still available to the user (statvfs
+  `f_bavail`, the same basis KSystemStats uses), so used + free = total. GNU
+  `df`'s *used* column is slightly smaller, because it counts the btrfs
+  metadata reserve as free;
+- the popup lists the counted filesystems themselves, so nothing has to be
+  configured per machine.
+
+The daemon's own `disk/all/*` sensor group is deliberately not used: ksystemstats
+creates one volume object per Solid storage volume and sums them, and a LUKS
+container plus the filesystem on it are two volumes backed by one filesystem.
+On a LUKS + btrfs machine that reports 948.7 GiB for a 474.3 GiB disk, with the
+used amount doubled. If `findmnt` cannot be read the strip shows `—` and the
+popup says so, rather than showing 0%.
 
 ## License
 
