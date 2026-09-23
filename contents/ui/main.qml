@@ -24,12 +24,13 @@ PlasmoidItem {
     // another to the filesystem on it whenever Solid lists both, so a single
     // filesystem is counted twice: on a LUKS + btrfs machine the strip claims
     // 948.7 GiB for a 474.3 GiB disk, with the used amount doubled too.
-    // findmnt reports the kernel's mount table, where each mount appears once,
-    // so the numbers are built from that instead — see contents/ui/diskusage.js
-    // for the rules and for why the used amount is capacity minus available.
+    // lsblk reports the kernel's own device tree and mount table, where a
+    // filesystem appears once, so the numbers are built from that instead — see
+    // contents/ui/diskusage.js for the rules, and for why the used amount is
+    // capacity minus available.
     //
     // diskUsage stays null until the first read arrives, so an unreachable
-    // findmnt shows "—" rather than a plausible-looking 0%.
+    // lsblk shows "—" rather than a plausible-looking 0%.
     property var diskUsage: null
     property string diskError: ""
 
@@ -59,15 +60,15 @@ PlasmoidItem {
         if (diskExec.connectedSources.length > 0) {
             return;                            // one read in flight at a time
         }
-        diskExec.connectSource("findmnt -J -b -l -o SOURCE,TARGET,FSTYPE,SIZE,AVAIL");
+        diskExec.connectSource("lsblk -J -b -o NAME,PKNAME,MOUNTPOINTS,FSSIZE,FSAVAIL");
     }
 
     function readDisks(stdout) {
         const read = DiskUsage.report(stdout);
         if (read.total <= 0) {
-            // findmnt missing, or its output is not what we expect: keep the
-            // last good values and say so in the popup.
-            root.diskError = i18n("no readable mount table (findmnt)");
+            // lsblk missing, or its output is not what we expect: keep the last
+            // good values and say so in the popup.
+            root.diskError = i18n("no readable device tree (lsblk)");
             return;
         }
         root.diskError = "";
@@ -525,10 +526,10 @@ PlasmoidItem {
                 DetailLabel { text: i18n("%1 used, %2 free of %3", root.diskUsed(), root.diskFree(), root.diskTotal()) }
 
                 Repeater {
-                    // One row per local filesystem, from the same read as the
-                    // "All disks" line above: a device counts once however
-                    // often it is mounted, so a btrfs with / and /home on it
-                    // shows one row.
+                    // One row per counted filesystem, from the same read as the
+                    // "All disks" line above. A filesystem nested inside a
+                    // larger one on its own drive (a /boot partition, say) is
+                    // not counted and not listed.
                     model: root.diskFilesystems
 
                     delegate: DimLabel {
@@ -537,7 +538,7 @@ PlasmoidItem {
                         required property var modelData
                         required property int index
 
-                        text: modelData.target
+                        text: modelData.name
                         Layout.row: 1 + index
                         Layout.column: 0
                         Layout.maximumWidth: Kirigami.Units.gridUnit * 14

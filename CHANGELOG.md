@@ -10,17 +10,18 @@ and versions follow the `Version` field in `metadata.json` (tag `v<version>`).
 - Disk amounts no longer come from KSystemStats' `disk/all/*` sensors, which
   count one filesystem twice when Solid lists both a LUKS container and the
   filesystem on it — a 474.3 GiB disk read as 948.7 GiB, with the used amount
-  doubled. They are read from the kernel mount table instead, so the *All
-  disks* line, the tooltip and the popup now agree with `df`.
+  doubled. They are read from the kernel's device tree (`lsblk`) instead, so
+  the *All disks* line, the tooltip and the popup now agree with `df`.
 - The popup's per-filesystem list is built from that read, which removes the
   hardcoded partition UUIDs of the machine the widget was written on.
 
 ### Changed
-- The DISK metric counts every distinct local filesystem once and sums them:
-  mounts sharing a backing device (btrfs subvolumes, bind mounts) collapse into
-  one entry, and filesystems that are not on a block device (network shares,
-  tmpfs, overlay) are left out. `/boot` and the EFI system partition are local
-  filesystems of their own, so they are included.
+- The DISK metric leaves out a filesystem that is mounted inside another
+  filesystem on the same drive when that other one is at least as large, so
+  `/boot` and the EFI system partition no longer inflate the total. A data
+  partition larger than its root filesystem, and any filesystem on a further
+  drive, still counts. A LUKS container, swap and unformatted disks have no
+  mount point and drop out.
 
 ## [2.2] - 2026-07-15
 
