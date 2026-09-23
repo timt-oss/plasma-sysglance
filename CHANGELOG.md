@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow the `Version` field in `metadata.json` (tag `v<version>`).
 
+## [Unreleased]
+
+### Fixed
+- Disk amounts no longer come from KSystemStats' `disk/all/*` sensors, which
+  count one filesystem twice when Solid lists both a LUKS container and the
+  filesystem on it — a 474.3 GiB disk read as 948.7 GiB, with the used amount
+  doubled. They are read from the kernel mount table instead, so the *All
+  disks* line, the tooltip and the popup now agree with `df`.
+- The popup's per-filesystem list is built from that read, which removes the
+  hardcoded partition UUIDs of the machine the widget was written on.
+
+### Changed
+- The DISK metric counts every distinct local filesystem once and sums them:
+  mounts sharing a backing device (btrfs subvolumes, bind mounts) collapse into
+  one entry, and filesystems that are not on a block device (network shares,
+  tmpfs, overlay) are left out. `/boot` and the EFI system partition are local
+  filesystems of their own, so they are included.
+
 ## [2.2] - 2026-07-15
 
 ### Changed
