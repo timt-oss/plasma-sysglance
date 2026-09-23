@@ -40,7 +40,7 @@ Clicking it opens a detail popup; hovering shows a summary tooltip.
 - **Hover tooltip** — one-line summary per device.
 - Reads everything from KSystemStats via `org.kde.ksysguard.sensors` — the
   same daemon Plasma's own System Monitor widgets use — except the disk
-  amounts, which are read from the kernel mount table (`findmnt`) because the
+  amounts, which are read from the kernel's device tree (`lsblk`) because the
   daemon's `disk/all/*` aggregate double-counts a filesystem (see *Disk
   values* below). NVIDIA GPUs work through the daemon's NVML backend; no
   lm_sensors hwmon entry needed.
@@ -59,7 +59,7 @@ Clicking it opens a detail popup; hovering shows a summary tooltip.
 ## Requirements
 
 - Plasma 6 (`libksysguard` QML bindings, present on any stock install)
-- `findmnt` for the disk amounts (util-linux, present on any stock install)
+- `lsblk` for the disk amounts (util-linux, present on any stock install)
 - For NVIDIA GPU stats: a working `nvidia-smi`
 
 ## Install
@@ -73,15 +73,19 @@ Then add **System Glance** to a panel via *Add Widgets…*.
 
 ## Disk values
 
-The DISK metric and the popup's disk list are built from the kernel mount table
-(`findmnt -J -b -l -o SOURCE,TARGET,FSTYPE,SIZE,AVAIL`), read once every 10 s.
-The rules are in `contents/ui/diskusage.js`:
+The DISK metric and the popup's disk list are built from the kernel's device
+tree (`lsblk -J -b -o NAME,PKNAME,MOUNTPOINTS,FSSIZE,FSAVAIL`), read once every
+10 s. The rules are in `contents/ui/diskusage.js`:
 
-- every distinct local filesystem counts once — mounts that share a backing
-  device (btrfs subvolumes such as `/` and `/home`, bind mounts) collapse into
-  a single entry, so capacity is never counted twice;
-- filesystems that are not on a block device are left out, which excludes
-  network shares, tmpfs and overlay filesystems;
+- a row counts as a filesystem when it has both a mount point and a filesystem
+  size, so a LUKS container, swap and unformatted disks drop out on their own
+  and nothing is counted twice. A device mounted at several points (btrfs
+  subvolumes) is one row;
+- a filesystem is left out when it is mounted inside another filesystem on the
+  same drive and that other filesystem is at least as large. `/boot` and the
+  EFI system partition sit inside the root filesystem on the same drive and drop
+  out, so the total is not inflated by them; a data partition larger than its
+  root filesystem, and any filesystem on a further drive, still counts;
 - "used" is capacity minus the space still available to the user (statvfs
   `f_bavail`, the same basis KSystemStats uses), so used + free = total. GNU
   `df`'s *used* column is slightly smaller, because it counts the btrfs
@@ -93,8 +97,8 @@ The daemon's own `disk/all/*` sensor group is deliberately not used: ksystemstat
 creates one volume object per Solid storage volume and sums them, and a LUKS
 container plus the filesystem on it are two volumes backed by one filesystem.
 On a LUKS + btrfs machine that reports 948.7 GiB for a 474.3 GiB disk, with the
-used amount doubled. If `findmnt` cannot be read the strip shows `—` and the
-popup says so, rather than showing 0%.
+used amount doubled. If `lsblk` cannot be read the strip shows `—` and the popup
+says so, rather than showing 0%.
 
 ## License
 
