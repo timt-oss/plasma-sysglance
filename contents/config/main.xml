@@ -186,5 +186,33 @@
         <entry name="fanCriticalThreshold" type="Int">
             <default>5000</default>
         </entry>
+        <!-- Per-alert desktop notifications, off by default so that an upgrade
+             never starts notifying on its own. A notification reports a
+             crossing (normal -> warning -> critical), not a level: it is sent
+             when a value enters a worse state, at most once per alert per five
+             minutes, and always on an escalation to critical. The cooldown is
+             fixed in main.qml, not configurable. Disk never reaches critical,
+             so its switch produces warnings only. -->
+        <entry name="notifyRam" type="Bool">
+            <default>false</default>
+        </entry>
+        <entry name="notifyDisk" type="Bool">
+            <default>false</default>
+        </entry>
+        <entry name="notifyCpuUsage" type="Bool">
+            <default>false</default>
+        </entry>
+        <entry name="notifyCpuTemp" type="Bool">
+            <default>false</default>
+        </entry>
+        <entry name="notifyGpuUsage" type="Bool">
+            <default>false</default>
+        </entry>
+        <entry name="notifyGpuTemp" type="Bool">
+            <default>false</default>
+        </entry>
+        <entry name="notifyFan" type="Bool">
+            <default>false</default>
+        </entry>
     </group>
 </kcfg>

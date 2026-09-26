@@ -7,7 +7,9 @@ import org.kde.plasma.extras as PlasmaExtras
 import org.kde.plasma.plasma5support as P5Support
 import org.kde.kirigami as Kirigami
 import org.kde.ksysguard.sensors as Sensors
+import org.kde.notification
 
+import "alerts.js" as Alerts
 import "diskusage.js" as DiskUsage
 
 PlasmoidItem {
@@ -362,6 +364,222 @@ PlasmoidItem {
         return v >= Plasmoid.configuration.fanCriticalThreshold ? 2
              : v >= Plasmoid.configuration.fanThreshold ? 1
              : 0;
+    }
+
+    // --- Alert notifications ---------------------------------------------
+    //
+    // The colors react to the value at every tick; a notification reports a
+    // *crossing* instead — normal → amber → red — so a value that sits over its
+    // threshold for an hour is announced once, a value that flaps across the
+    // threshold at most once per alert per notifyCooldownMs, and an escalation
+    // to red always, cooldown or not. The rules themselves are in
+    // contents/ui/alerts.js, where they are tested without a Plasma session.
+    //
+    // Sending needs a notifyrc and a plasmoid cannot ship one (kpackagetool6
+    // installs the plasmoid alone, and a notifyrc lives in the KDE data dirs),
+    // so notifications go out as plasma_workspace's "notification" event: a
+    // plain popup with no sound, and one the user can silence or give a sound
+    // under System Settings > Notifications > System Notifications. Severity
+    // rides on the urgency rather than on picking a louder event: amber is
+    // Normal, red is Critical, and Plasma keeps a critical notification on
+    // screen until it is dismissed.
+
+    // Fixed on purpose: the threshold grid already carries eight rows, and a
+    // repeat interval of its own for each alert would add seven more.
+    readonly property int notifyCooldownMs: 300000
+
+    readonly property var alertKeys: ["ram", "disk", "cpuUsage", "cpuTemp", "gpuUsage", "gpuTemp", "fan"]
+
+    // One alert as the notification code sees it: its tier, the two thresholds
+    // that tier was computed with, and the reading the message quotes — put
+    // together with the strip's own formatters, so a notification reads exactly
+    // like the row it belongs to. The unit is what the thresholds of that alert
+    // are counted in, so a message can say "over the 85% threshold".
+    function alertReading(key) {
+        const c = Plasmoid.configuration;
+        if (key === "ram") {
+            return { tier: root.ramTier, warn: c.ramThreshold, crit: c.ramThreshold + 10,
+                     text: i18n("RAM at %1", pct(ramSensor.value)), unit: "%" };
+        }
+        if (key === "disk") {
+            // diskTier caps at amber, so the red level here is never quoted
+            return { tier: root.diskTier, warn: c.diskThreshold, crit: c.diskThreshold + 10,
+                     text: i18n("Disk at %1 used", diskPercent()), unit: "%" };
+        }
+        if (key === "cpuUsage") {
+            return { tier: root.cpuUsageTier, warn: c.cpuUsageThreshold, crit: c.cpuUsageThreshold + 10,
+                     text: i18n("CPU at %1", pct(cpuUsage.value)), unit: "%" };
+        }
+        if (key === "cpuTemp") {
+            return { tier: root.cpuTempTier, warn: c.cpuTempThreshold, crit: c.cpuTempThreshold + 10,
+                     text: i18n("CPU temperature %1", deg(cpuTempMax.value)), unit: "°C" };
+        }
+        if (key === "gpuUsage") {
+            return { tier: root.gpuUsageTier, warn: c.gpuUsageThreshold, crit: c.gpuUsageThreshold + 10,
+                     text: i18n("GPU at %1", pct(gpuUsage.value)), unit: "%" };
+        }
+        if (key === "gpuTemp") {
+            return { tier: root.gpuTempTier, warn: c.gpuTempThreshold, crit: c.gpuTempThreshold + 10,
+                     text: i18n("GPU temperature %1", deg(gpuTemp.value)), unit: "°C" };
+        }
+        return { tier: root.fanTier, warn: c.fanThreshold, crit: c.fanCriticalThreshold,
+                 text: i18n("Fan speed %1", rpm(fanValue())), unit: "RPM" };
+    }
+
+    // "85%", "80 °C", "4000 RPM" — the number the user typed in the settings
+    // page, with the unit that alert is counted in.
+    function alertLevel(value, unit) {
+        return unit === "%" ? value + "%" : value + " " + unit;
+    }
+
+    // Which alerts the user asked to be told about.
+    function notifyEnabled(key) {
+        const c = Plasmoid.configuration;
+        return key === "ram" ? c.notifyRam
+             : key === "disk" ? c.notifyDisk
+             : key === "cpuUsage" ? c.notifyCpuUsage
+             : key === "cpuTemp" ? c.notifyCpuTemp
+             : key === "gpuUsage" ? c.notifyGpuUsage
+             : key === "gpuTemp" ? c.notifyGpuTemp
+             : c.notifyFan;
+    }
+
+    // One Notification object per alert, reused for the widget's lifetime: a
+    // KNotification deletes itself after being closed in C++, but QML's
+    // autoDelete is off, and one object per alert means two alerts crossing in
+    // the same tick get one notification each instead of overwriting each
+    // other.
+    component AlertNotification : Notification {
+        componentName: "plasma_workspace"
+        eventId: "notification"
+        flags: Notification.CloseOnTimeout
+    }
+
+    AlertNotification { id: alertRam }
+    AlertNotification { id: alertDisk }
+    AlertNotification { id: alertCpuUsage }
+    AlertNotification { id: alertCpuTemp }
+    AlertNotification { id: alertGpuUsage }
+    AlertNotification { id: alertGpuTemp }
+    AlertNotification { id: alertFan }
+
+    function alertNotification(key) {
+        return key === "ram" ? alertRam
+             : key === "disk" ? alertDisk
+             : key === "cpuUsage" ? alertCpuUsage
+             : key === "cpuTemp" ? alertCpuTemp
+             : key === "gpuUsage" ? alertGpuUsage
+             : key === "gpuTemp" ? alertGpuTemp
+             : alertFan;
+    }
+
+    // A notification icon is a theme icon *name* the server resolves, so an icon
+    // that is a file path — which the icon dialog allows, and which the fan's
+    // bundled SVG falls back to — would resolve to nothing. "cpuUsage" and
+    // "cpuTemp" are two alerts on one metric and wear that metric's icon.
+    function alertIcon(key) {
+        const icon = String(root.metricIcon(key.replace(/(Usage|Temp)$/, "")));
+        return icon.indexOf("/") === -1 ? icon : "utilities-system-monitor";
+    }
+
+    function announceAlert(key, reading) {
+        const level = root.alertLevel(reading.tier === 2 ? reading.crit : reading.warn, reading.unit);
+        const notification = root.alertNotification(key);
+        notification.title = i18n("System Glance");
+        notification.text = reading.tier === 2
+            ? i18n("%1 — over the %2 critical level", reading.text, level)
+            : i18n("%1 — over the %2 alert threshold", reading.text, level);
+        notification.iconName = root.alertIcon(key);
+        notification.urgency = reading.tier === 2 ? Notification.CriticalUrgency : Notification.NormalUrgency;
+        notification.sendEvent();
+    }
+
+    // What each alert was last seen doing (see alerts.js).
+    property var alertState: ({})
+
+    function setAlertState(key, state) {
+        const next = {};
+        for (const k in root.alertState) {
+            next[k] = root.alertState[k];
+        }
+        next[key] = state;
+        root.alertState = next;
+    }
+
+    // The warm-up: the daemon hands a new subscriber the placeholder 0 and only
+    // pushes the real value one updateRateLimit later, so without it a reload at
+    // login would announce every value that happens to be over its threshold.
+    // The five seconds are slack for a slow first push.
+    property bool alertsArmed: false
+
+    Timer {
+        interval: root.rateMs + 5000
+        running: true
+        onTriggered: root.armAlerts()
+    }
+
+    function armAlerts() {
+        const baseline = {};
+        for (const key of root.alertKeys) {
+            baseline[key] = Alerts.baseline(root.alertReading(key));
+        }
+        root.alertState = baseline;
+        root.alertsArmed = true;
+    }
+
+    // One alert's check. Called from the tier change handlers below, so it runs
+    // when a value moves across a threshold rather than on a timer of its own.
+    function checkAlert(key) {
+        const reading = root.alertReading(key);
+        const result = Alerts.step(root.alertState[key], reading, {
+            armed: root.alertsArmed,
+            enabled: root.notifyEnabled(key),
+            now: Date.now(),
+            cooldownMs: root.notifyCooldownMs
+        });
+        root.setAlertState(key, result.state);
+        if (result.send) {
+            root.announceAlert(key, reading);
+        }
+    }
+
+    // Every tier is a binding on the sensor values, so these fire exactly when a
+    // value moves across a threshold — no polling of its own.
+    onRamTierChanged: root.checkAlert("ram")
+    onDiskTierChanged: root.checkAlert("disk")
+    onCpuUsageTierChanged: root.checkAlert("cpuUsage")
+    onCpuTempTierChanged: root.checkAlert("cpuTemp")
+    onGpuUsageTierChanged: root.checkAlert("gpuUsage")
+    onGpuTempTierChanged: root.checkAlert("gpuTemp")
+    onFanTierChanged: root.checkAlert("fan")
+
+    // Turning a switch on asks for the state of things now, so a value that is
+    // already over its threshold is announced once at that moment; turning one
+    // off is silent. The dialog writes one key at a time, which is why each
+    // switch is watched individually.
+    function alertSwitchChanged(key) {
+        const reading = root.alertReading(key);
+        const result = Alerts.switchedOn(reading, {
+            armed: root.alertsArmed,
+            enabled: root.notifyEnabled(key),
+            now: Date.now()
+        });
+        root.setAlertState(key, result.state);
+        if (result.send) {
+            root.announceAlert(key, reading);
+        }
+    }
+
+    Connections {
+        target: Plasmoid.configuration
+
+        function onNotifyRamChanged()      { root.alertSwitchChanged("ram"); }
+        function onNotifyDiskChanged()     { root.alertSwitchChanged("disk"); }
+        function onNotifyCpuUsageChanged() { root.alertSwitchChanged("cpuUsage"); }
+        function onNotifyCpuTempChanged()  { root.alertSwitchChanged("cpuTemp"); }
+        function onNotifyGpuUsageChanged() { root.alertSwitchChanged("gpuUsage"); }
+        function onNotifyGpuTempChanged()  { root.alertSwitchChanged("gpuTemp"); }
+        function onNotifyFanChanged()      { root.alertSwitchChanged("fan"); }
     }
 
     toolTipMainText: i18n("System Glance")

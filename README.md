@@ -33,6 +33,18 @@ Clicking it opens a detail popup; hovering shows a summary tooltip.
   and red at threshold + 10. Disk only ever turns amber (a nearly-full disk is
   a capacity fact, not an emergency). Thresholds and update interval are
   configurable per metric.
+- **Alert notifications** (off by default) — a desktop notification when a value
+  crosses into a worse state: amber at the threshold, red at the critical level.
+  Each alert has its own switch beside its threshold on the General settings
+  page. A notification reports a crossing, not a level, so a value that sits
+  over its threshold is announced once, the same state is not repeated inside
+  five minutes, an escalation to red always is, and a switch turned on while a
+  value is already over its threshold announces it once at that moment. Disk,
+  which never goes red, only ever warns. The first reading after the widget
+  loads is a baseline, so a reload while something is already over its threshold
+  announces nothing. Notifications are Plasma's own, sent as the *System
+  Notifications* event — under System Settings → Notifications they can be
+  silenced or given a sound like any other.
 - **Click popup** — Memory (used / free / total + swap), per-filesystem disk
   breakdown (used / free / total for each counted filesystem), per-core CPU grid
   (usage, temperature, frequency), GPU details (VRAM, power draw,

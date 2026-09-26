@@ -7,6 +7,16 @@ and versions follow the `Version` field in `metadata.json` (tag `v<version>`).
 ## [Unreleased]
 
 ### Added
+- Per-alert desktop notifications, off by default. The General settings page gets
+  a "Notify" switch beside each alert threshold; a notification is sent when the
+  value crosses into a worse state — amber at the threshold, red at the critical
+  level (`threshold + 10`, or the fan's own critical RPM) — rather than on every
+  update. The same state is not announced twice inside five minutes, an
+  escalation to red always is, and a switch turned on while a value is already
+  over its threshold announces it once at that moment. Disk never goes red, so
+  its switch only ever warns. The first reading after the widget loads is a
+  baseline: values that are already over their thresholds when a login reloads
+  the widget are not announced, since that is a level and not a crossing.
 - Fan speed as a fifth metric. The Appearance settings page lists the RPM
   sensors KSystemStats publishes (typically one `lmsensors/<chip>/fanN` sensor
   per fan through lm_sensors) and the picked one is shown in the strip. The

@@ -71,6 +71,13 @@ KCM.SimpleKCM {
     property int cfg_gpuTempThresholdDefault: 0
     property int cfg_fanThresholdDefault: 0
     property int cfg_fanCriticalThresholdDefault: 0
+    property bool cfg_notifyRamDefault: false
+    property bool cfg_notifyDiskDefault: false
+    property bool cfg_notifyCpuUsageDefault: false
+    property bool cfg_notifyCpuTempDefault: false
+    property bool cfg_notifyGpuUsageDefault: false
+    property bool cfg_notifyGpuTempDefault: false
+    property bool cfg_notifyFanDefault: false
 
     property alias cfg_updateInterval: updateIntervalSpin.value
     property alias cfg_ramThreshold: ramSpin.value
@@ -81,9 +88,27 @@ KCM.SimpleKCM {
     property alias cfg_gpuTempThreshold: gpuTempSpin.value
     property alias cfg_fanThreshold: fanSpin.value
     property alias cfg_fanCriticalThreshold: fanCriticalSpin.value
+    property alias cfg_notifyRam: notifyRamCheck.checked
+    property alias cfg_notifyDisk: notifyDiskCheck.checked
+    property alias cfg_notifyCpuUsage: notifyCpuUsageCheck.checked
+    property alias cfg_notifyCpuTemp: notifyCpuTempCheck.checked
+    property alias cfg_notifyGpuUsage: notifyGpuUsageCheck.checked
+    property alias cfg_notifyGpuTemp: notifyGpuTempCheck.checked
+    property alias cfg_notifyFan: notifyFanCheck.checked
 
     component FieldLabel : QQC2.Label {
         Layout.alignment: Qt.AlignRight
+    }
+
+    // The third column of the threshold grid: a bare box under a "Notify"
+    // heading, with its accessible name carrying what the heading cannot.
+    component NotifyCheck : QQC2.CheckBox {
+        property string alertName
+
+        Layout.alignment: Qt.AlignLeft
+        Accessible.name: alertName !== ""
+            ? i18n("Notify when %1 crosses its alert threshold", alertName)
+            : i18n("Notify")
     }
 
     // Reset every General option to its main.xml default
@@ -97,6 +122,13 @@ KCM.SimpleKCM {
         cfg_gpuTempThreshold = cfg_gpuTempThresholdDefault;
         cfg_fanThreshold = cfg_fanThresholdDefault;
         cfg_fanCriticalThreshold = cfg_fanCriticalThresholdDefault;
+        cfg_notifyRam = cfg_notifyRamDefault;
+        cfg_notifyDisk = cfg_notifyDiskDefault;
+        cfg_notifyCpuUsage = cfg_notifyCpuUsageDefault;
+        cfg_notifyCpuTemp = cfg_notifyCpuTempDefault;
+        cfg_notifyGpuUsage = cfg_notifyGpuUsageDefault;
+        cfg_notifyGpuTemp = cfg_notifyGpuTempDefault;
+        cfg_notifyFan = cfg_notifyFanDefault;
     }
 
     // Rendered right-aligned on the page-title row by the dialog's header
@@ -141,11 +173,26 @@ KCM.SimpleKCM {
             wrapMode: Text.WordWrap
         }
 
+        QQC2.Label {
+            Layout.fillWidth: true
+            text: i18n("Notify sends a desktop notification when a value crosses into a worse state — amber once, red once — rather than on every update. The same state is not announced twice inside five minutes; an escalation to red always is. A switch turned on while a value is already over its threshold announces it at that moment, and only that once.")
+            font: Kirigami.Theme.smallFont
+            wrapMode: Text.WordWrap
+        }
+
         GridLayout {
-            columns: 2
+            columns: 3
             columnSpacing: Kirigami.Units.largeSpacing
             rowSpacing: Kirigami.Units.smallSpacing
             Layout.alignment: Qt.AlignLeft
+
+            // Heading for the third column; the first two are labelled per row.
+            Item { }
+            Item { }
+            QQC2.Label {
+                text: i18n("Notify")
+                font.bold: true
+            }
 
             FieldLabel { text: i18n("RAM alert threshold (%):") }
             QQC2.SpinBox {
@@ -153,6 +200,7 @@ KCM.SimpleKCM {
                 from: 1
                 to: 100
             }
+            NotifyCheck { id: notifyRamCheck; alertName: i18n("RAM") }
 
             FieldLabel { text: i18n("Disk alert threshold (%):") }
             QQC2.SpinBox {
@@ -160,6 +208,7 @@ KCM.SimpleKCM {
                 from: 1
                 to: 100
             }
+            NotifyCheck { id: notifyDiskCheck; alertName: i18n("disk usage") }
 
             FieldLabel { text: i18n("CPU usage alert threshold (%):") }
             QQC2.SpinBox {
@@ -167,6 +216,7 @@ KCM.SimpleKCM {
                 from: 1
                 to: 100
             }
+            NotifyCheck { id: notifyCpuUsageCheck; alertName: i18n("CPU usage") }
 
             FieldLabel { text: i18n("CPU temperature alert (°C):") }
             QQC2.SpinBox {
@@ -174,6 +224,7 @@ KCM.SimpleKCM {
                 from: 30
                 to: 110
             }
+            NotifyCheck { id: notifyCpuTempCheck; alertName: i18n("CPU temperature") }
 
             FieldLabel { text: i18n("GPU usage alert threshold (%):") }
             QQC2.SpinBox {
@@ -181,6 +232,7 @@ KCM.SimpleKCM {
                 from: 1
                 to: 100
             }
+            NotifyCheck { id: notifyGpuUsageCheck; alertName: i18n("GPU usage") }
 
             FieldLabel { text: i18n("GPU temperature alert (°C):") }
             QQC2.SpinBox {
@@ -188,6 +240,7 @@ KCM.SimpleKCM {
                 from: 30
                 to: 110
             }
+            NotifyCheck { id: notifyGpuTempCheck; alertName: i18n("GPU temperature") }
 
             FieldLabel { text: i18n("Fan speed alert (RPM):") }
             QQC2.SpinBox {
@@ -196,6 +249,7 @@ KCM.SimpleKCM {
                 to: 20000
                 stepSize: 100
             }
+            NotifyCheck { id: notifyFanCheck; alertName: i18n("fan speed") }
 
             FieldLabel { text: i18n("Fan speed critical (RPM):") }
             QQC2.SpinBox {
@@ -204,6 +258,7 @@ KCM.SimpleKCM {
                 to: 20000
                 stepSize: 100
             }
+            Item { }
         }
     }
 }

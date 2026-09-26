@@ -83,6 +83,13 @@ KCM.SimpleKCM {
     property int cfg_gpuTempThreshold; property int cfg_gpuTempThresholdDefault: 0
     property int cfg_fanThreshold; property int cfg_fanThresholdDefault: 0
     property int cfg_fanCriticalThreshold; property int cfg_fanCriticalThresholdDefault: 0
+    property bool cfg_notifyRam; property bool cfg_notifyRamDefault: false
+    property bool cfg_notifyDisk; property bool cfg_notifyDiskDefault: false
+    property bool cfg_notifyCpuUsage; property bool cfg_notifyCpuUsageDefault: false
+    property bool cfg_notifyCpuTemp; property bool cfg_notifyCpuTempDefault: false
+    property bool cfg_notifyGpuUsage; property bool cfg_notifyGpuUsageDefault: false
+    property bool cfg_notifyGpuTemp; property bool cfg_notifyGpuTempDefault: false
+    property bool cfg_notifyFan; property bool cfg_notifyFanDefault: false
 
     // Strip content: metricOrder + per-metric Shown/Parts (ordered
     // comma-separated part keys, or "custom" with a <metric>Format template)
