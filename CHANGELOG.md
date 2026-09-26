@@ -30,9 +30,10 @@ and versions follow the `Version` field in `metadata.json` (tag `v<version>`).
   whatever it is handed to the ListView, so a drag never moved a row.
 - Disk amounts no longer come from KSystemStats' `disk/all/*` sensors, which
   count one filesystem twice when Solid lists both a LUKS container and the
-  filesystem on it — a 474.3 GiB disk read as 948.7 GiB, with the used amount
-  doubled. They are read from the kernel's device tree (`lsblk`) instead, so
-  the *All disks* line, the tooltip and the popup now agree with `df`.
+  filesystem on it — the total read as about twice the real capacity, with the
+  used amount doubled. They are read from the kernel's device tree (`lsblk`)
+  instead, so the *All disks* line, the tooltip and the popup now agree with
+  `df`.
 - The popup's per-filesystem list is built from that read, which removes the
   hardcoded partition UUIDs of the machine the widget was written on.
 

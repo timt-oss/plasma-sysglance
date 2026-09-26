@@ -24,8 +24,9 @@ PlasmoidItem {
     // The DISK metric deliberately does not read KSystemStats' disk/all/*
     // sensors. That aggregate gives one volume object to a LUKS container and
     // another to the filesystem on it whenever Solid lists both, so a single
-    // filesystem is counted twice: on a LUKS + btrfs machine the strip claims
-    // 948.7 GiB for a 474.3 GiB disk, with the used amount doubled too.
+    // filesystem is counted twice: on a LUKS + btrfs machine the strip's total
+    // comes out at about twice the real capacity, with the used amount doubled
+    // with it.
     // lsblk reports the kernel's own device tree and mount table, where a
     // filesystem appears once, so the numbers are built from that instead — see
     // contents/ui/diskusage.js for the rules, and for why the used amount is

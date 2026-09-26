@@ -43,7 +43,7 @@ are all it needs — both stock — and NVIDIA stats need a working `nvidia-smi`
 The disk percentage counts each mounted filesystem once, from the kernel's mount
 table, so containers, swap and `/boot` do not inflate it. The sensor daemon's own
 "All Disks" figure can: a LUKS container and the filesystem inside it are summed
-as two, which reports 948.7 GiB for a 474.3 GiB disk. GNU `df`'s *used* column
+as two, which reports about twice the real capacity. GNU `df`'s *used* column
 reads a little smaller than ours on btrfs. The rules are in
 `contents/ui/diskusage.js`.
 
