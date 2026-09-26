@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 env:
-  PKG: com.nerdstrike.sysglance
+  PKG: com.timtoss.sysglance
 
 jobs:
   release:

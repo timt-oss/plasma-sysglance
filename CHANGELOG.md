@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow the `Version` field in `metadata.json` (tag `v<version>`).
 
-## [Unreleased]
+## [3.0] - 2026-09-26
 
 ### Added
 - Per-alert desktop notifications, off by default. The General settings page gets
@@ -44,6 +44,9 @@ and versions follow the `Version` field in `metadata.json` (tag `v<version>`).
   partition larger than its root filesystem, and any filesystem on a further
   drive, still counts. A LUKS container, swap and unformatted disks have no
   mount point and drop out.
+- Plugin ID renamed from `com.nerdstrike.sysglance` to `com.timtoss.sysglance`, so
+  this fork no longer installs over the original product. Settings do not carry
+  over on an in-place upgrade: remove the old widget and add this one.
 
 ## [2.2] - 2026-07-15
 

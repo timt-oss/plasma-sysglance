@@ -1,4 +1,4 @@
-PKG = com.nerdstrike.sysglance
+PKG = com.timtoss.sysglance
 VERSION = $(shell python3 -c "import json; print(json.load(open('metadata.json'))['KPlugin']['Version'])")
 
 # qmllint is not on PATH on Fedora: it ships in <libdir>/qt6/bin beside the rest
