@@ -82,9 +82,10 @@ make install    # first time
 make upgrade    # after changes (restarts plasmashell)
 ```
 
-`make upgrade` lints before it installs, and on Fedora `qmllint` is not on
-`PATH`: run it as `PATH=/usr/lib64/qt6/bin:$PATH make upgrade`. Restarting
-plasmashell alone is `systemctl --user restart plasma-plasmashell.service`.
+`make lint` finds `qmllint` on its own — on Fedora it ships in
+`/usr/lib64/qt6/bin` rather than on `PATH`, and `QML_LINT=/path/to/qmllint`
+overrides it. Restarting plasmashell alone is
+`systemctl --user restart plasma-plasmashell.service`.
 
 Then add **System Glance** to a panel via *Add Widgets…*.
 
